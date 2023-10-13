@@ -4,3 +4,4 @@ common/sly/__pycache__/
 node/__pycache__
 orchestrator/__pycache__
 services/kernel/__pycache__
+.DS_Store
