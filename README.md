@@ -3,7 +3,7 @@
 
 
 LEOScope is a platform to enable experimentation and development across LEO satellite networks. The goal is to enable real-world experimentation with respect to satellite networks at a global scale.
-The Web portal for interfacing with the cloud orchestrator is [here](https://github.com/leoscope-testbed/website-code)
+The Web portal for interfacing with the cloud orchestrator is [here](https://github.com/leoscope-testbed/website)
 
 
 <!--  Official Website: [LEOScope](https://20.168.9.14/) -->
