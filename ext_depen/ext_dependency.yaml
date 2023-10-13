@@ -1,0 +1,12 @@
+--- # LEOScope external dependencies
+server:
+    aws: 'https://checkip.amazonaws.com'
+systems:
+    satellite :
+        tle_url: "https://celestrak.org/NORAD/elements/supplemental/starlink.txt"
+        shells: "./starlink.txt"
+    weather :
+        api: "https://api.openweathermap.org/data/2.5/weather?lat=%s&lon=%s&appid=%s&units=standard"
+        lat: "<latitude>"
+        lon: "<longitude>"
+        ele: '0.0'

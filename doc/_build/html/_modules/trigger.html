@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>trigger &mdash; LEOScope 00.00.01 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LEOScope
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">orchestrator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LEOScope</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">trigger</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for trigger</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">common.sly</span> <span class="kn">import</span> <span class="n">Lexer</span><span class="p">,</span> <span class="n">Parser</span>
+
+<span class="n">FIELDS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;uplink_throughput_bps&#39;</span><span class="p">,</span> <span class="s1">&#39;downlink_throughput_bps&#39;</span><span class="p">,</span> <span class="s1">&#39;exp_tx_rate_bytes&#39;</span><span class="p">,</span> 
+			<span class="s1">&#39;exp_rx_rate_bytes&#39;</span><span class="p">,</span> <span class="s1">&#39;pop_ping_latency_ms&#39;</span><span class="p">,</span> <span class="s1">&#39;direction_azimuth&#39;</span><span class="p">,</span>
+			<span class="s1">&#39;direction_elevation&#39;</span><span class="p">,</span> <span class="s1">&#39;currently_obstructed&#39;</span><span class="p">,</span> <span class="s1">&#39;fraction_obstructed&#39;</span><span class="p">,</span>
+			<span class="s1">&#39;sat_dist_max&#39;</span><span class="p">,</span> <span class="s1">&#39;sat_dist_min&#39;</span><span class="p">,</span> <span class="s1">&#39;sat_dist_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_id&#39;</span><span class="p">,</span> 
+			<span class="s1">&#39;weather_main&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_desc&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_temp&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_pressure&#39;</span><span class="p">,</span> 
+			<span class="s1">&#39;weather_humidity&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_temp_min&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_temp_max&#39;</span><span class="p">,</span> 
+			<span class="s1">&#39;weather_temp_mean&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_clouds&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_rain1h&#39;</span><span class="p">,</span> 
+			<span class="s1">&#39;weather_rain3h&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_snow1h&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_snow3h&#39;</span><span class="p">,</span> 
+			<span class="s1">&#39;weather_visibility&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_speed&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_deg&#39;</span><span class="p">,</span> <span class="s1">&#39;weather_gust&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="TriggerLexer"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerLexer">[docs]</a><span class="k">class</span> <span class="nc">TriggerLexer</span><span class="p">(</span><span class="n">Lexer</span><span class="p">):</span>
+	<span class="c1"># tokens = { NAME, NUMBER, STRING }</span>
+	<span class="n">tokens</span> <span class="o">=</span> <span class="p">{</span> <span class="n">NAME</span><span class="p">,</span> <span class="n">NUMBER</span><span class="p">,</span> <span class="n">EQUAL</span><span class="p">,</span> <span class="n">INEQUAL</span><span class="p">,</span> <span class="n">BIGGERE</span><span class="p">,</span> <span class="n">SMALLERE</span><span class="p">}</span>
+	<span class="n">ignore</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\t</span><span class="s1"> &#39;</span>
+	<span class="n">literals</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;=&#39;</span><span class="p">,</span> <span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">,</span>
+				<span class="s1">&#39;*&#39;</span><span class="p">,</span> <span class="s1">&#39;(&#39;</span><span class="p">,</span> <span class="s1">&#39;)&#39;</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="p">,</span> <span class="s1">&#39;;&#39;</span><span class="p">,</span> <span class="s1">&#39;&amp;&#39;</span><span class="p">,</span> <span class="s1">&#39;|&#39;</span><span class="p">,</span> <span class="s1">&#39;!&#39;</span><span class="p">,</span>
+				<span class="s1">&#39;&gt;&#39;</span><span class="p">,</span> <span class="s1">&#39;&lt;&#39;</span><span class="p">}</span>
+
+	<span class="c1"># Define tokens as regular expressions</span>
+	<span class="c1"># (stored as raw strings)</span>
+	<span class="n">NAME</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;[a-zA-Z_][a-zA-Z0-9_]*&#39;</span>
+	<span class="c1"># STRING = r&#39;\&quot;.*?\&quot;&#39;</span>
+	<span class="n">EQUAL</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(===|==)&#39;</span>
+	<span class="n">INEQUAL</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(!==|!=)&#39;</span>
+	<span class="n">BIGGERE</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(&gt;=)&#39;</span>
+	<span class="n">SMALLERE</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;(&lt;=)&#39;</span>
+
+	<span class="c1"># Number token</span>
+<div class="viewcode-block" id="TriggerLexer.NUMBER"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerLexer.NUMBER">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\d+&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">NUMBER</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+		
+		<span class="c1"># convert it into a python integer</span>
+		<span class="n">t</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">t</span></div>
+
+	<span class="c1"># Comment token</span>
+<div class="viewcode-block" id="TriggerLexer.COMMENT"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerLexer.COMMENT">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;//.*&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">COMMENT</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+		<span class="k">pass</span></div>
+
+	<span class="c1"># Newline token(used only for showing</span>
+	<span class="c1"># errors in new line)</span>
+<div class="viewcode-block" id="TriggerLexer.newline"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerLexer.newline">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\n+&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">newline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">lineno</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="TriggerParser"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser">[docs]</a><span class="k">class</span> <span class="nc">TriggerParser</span><span class="p">(</span><span class="n">Parser</span><span class="p">):</span>
+	<span class="c1">#tokens are passed from lexer to parser</span>
+	<span class="n">tokens</span> <span class="o">=</span> <span class="n">TriggerLexer</span><span class="o">.</span><span class="n">tokens</span>
+	<span class="c1"># debugfile = &#39;parser.out&#39;</span>
+
+	<span class="n">precedence</span> <span class="o">=</span> <span class="p">(</span>
+		<span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;|&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;&amp;&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;!&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;&lt;&#39;</span><span class="p">,</span> <span class="s1">&#39;SMALLERE&#39;</span><span class="p">,</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">,</span> <span class="s1">&#39;BIGGERE&#39;</span><span class="p">,</span> <span class="s1">&#39;EQUAL&#39;</span><span class="p">,</span> <span class="s1">&#39;INEQUAL&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;(&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;)&#39;</span><span class="p">),</span>
+		<span class="p">(</span><span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;UMINUS&#39;</span><span class="p">),</span>
+	<span class="p">)</span>
+  
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="p">{</span> <span class="p">}</span>
+  
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bstatement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">pass</span>
+  
+	<span class="c1"># @_(&#39;var_assign&#39;)</span>
+	<span class="c1"># def statement(self, p):</span>
+	<span class="c1">#     return p.var_assign</span>
+  
+	<span class="c1"># @_(&#39;NAME &quot;=&quot; expr&#39;)</span>
+	<span class="c1"># def var_assign(self, p):</span>
+	<span class="c1">#     return (&#39;var_assign&#39;, p.NAME, p.expr)</span>
+  
+	<span class="c1"># @_(&#39;NAME &quot;=&quot; STRING&#39;)</span>
+	<span class="c1"># def var_assign(self, p):</span>
+	<span class="c1">#     return (&#39;var_assign&#39;, p.NAME, p.STRING)</span>
+  
+<div class="viewcode-block" id="TriggerParser.bstatement"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.bstatement">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;bexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bstatement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">bexpr</span><span class="p">)</span></div>
+
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;bexpr &quot;|&quot; bexpr1&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;or&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">bexpr</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">bexpr1</span><span class="p">)</span>
+	
+<div class="viewcode-block" id="TriggerParser.bexpr"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.bexpr">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;bexpr1&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">bexpr1</span><span class="p">)</span></div>
+	
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;bexpr1 &quot;&amp;&quot; bexpr2&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr1</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;and&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">bexpr1</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">bexpr2</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TriggerParser.bexpr1"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.bexpr1">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;bexpr2&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr1</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">bexpr2</span><span class="p">)</span></div>
+
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;&quot;!&quot; bexpr2&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr2</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;not&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">bexpr2</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TriggerParser.bexpr2"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.bexpr2">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;bexpr3&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr2</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">bexpr3</span><span class="p">)</span></div>
+
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;&quot;(&quot; bexpr &quot;)&quot;&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr3</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">bexpr</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TriggerParser.bexpr3"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.bexpr3">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lstatement&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">bexpr3</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">lstatement</span><span class="p">)</span> </div>
+
+<div class="viewcode-block" id="TriggerParser.lstatement"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.lstatement">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lstatement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">lexpr</span><span class="p">)</span></div>
+
+	<span class="c1"># --- logical statement --- </span>
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;&quot;(&quot; lexpr &quot;)&quot;&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">lexpr</span><span class="p">)</span>
+
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lexpr &quot;&gt;&quot; lexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;greater&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr1</span><span class="p">)</span>
+	
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lexpr BIGGERE lexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;greater_equal&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr1</span><span class="p">)</span>
+	
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lexpr &quot;&lt;&quot; lexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s2">&quot;less&quot;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr1</span><span class="p">)</span>
+	
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lexpr SMALLERE lexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s2">&quot;less_equal&quot;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr1</span><span class="p">)</span>
+	
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lexpr EQUAL lexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s2">&quot;equal&quot;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr1</span><span class="p">)</span>
+
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;lexpr INEQUAL lexpr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s2">&quot;not_equal&quot;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">lexpr1</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TriggerParser.lexpr"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.lexpr">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;statement&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">lexpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">statement</span><span class="p">)</span></div>
+	
+	<span class="c1"># --- arithmetic statement ---</span>
+<div class="viewcode-block" id="TriggerParser.statement"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.statement">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;expr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">statement</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span></div>
+  
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;expr &quot;+&quot; expr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;add&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr1</span><span class="p">)</span>
+  
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;expr &quot;-&quot; expr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;sub&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr1</span><span class="p">)</span>
+  
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;expr &quot;*&quot; expr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;mul&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr1</span><span class="p">)</span>
+  
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;expr &quot;/&quot; expr&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;div&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr0</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr1</span><span class="p">)</span>
+	
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;&quot;(&quot; expr &quot;)&quot;&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">expr</span>
+	
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;&quot;|&quot; expr &quot;|&quot;&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;abs&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+  
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;&quot;-&quot; expr %prec UMINUS&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="n">p</span><span class="o">.</span><span class="n">expr</span>
+  
+	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;NAME&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;var&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">NAME</span><span class="p">)</span>
+  
+<div class="viewcode-block" id="TriggerParser.expr"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerParser.expr">[docs]</a>	<span class="nd">@_</span><span class="p">(</span><span class="s1">&#39;NUMBER&#39;</span><span class="p">)</span>
+	<span class="k">def</span> <span class="nf">expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+		<span class="k">return</span> <span class="p">(</span><span class="s1">&#39;num&#39;</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">NUMBER</span><span class="p">)</span></div></div>
+	
+	<span class="c1"># bool expr </span>
+	
+
+<div class="viewcode-block" id="TriggerEvaluate"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerEvaluate">[docs]</a><span class="k">class</span> <span class="nc">TriggerEvaluate</span><span class="p">:</span>
+	
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tree</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">env</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">tree</span> <span class="o">=</span> <span class="n">tree</span>
+  
+<div class="viewcode-block" id="TriggerEvaluate.evaluate"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerEvaluate.evaluate">[docs]</a>	<span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tree</span><span class="p">)</span>
+		<span class="k">return</span> <span class="n">result</span></div>
+
+<div class="viewcode-block" id="TriggerEvaluate.walkTree"><a class="viewcode-back" href="../common/trigger.html#trigger.TriggerEvaluate.walkTree">[docs]</a>	<span class="k">def</span> <span class="nf">walkTree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+  
+		<span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+			<span class="k">return</span> <span class="n">node</span>
+  
+		<span class="k">if</span> <span class="n">node</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+			<span class="k">return</span> <span class="kc">None</span>
+	
+		<span class="c1"># arithmetic operations </span>
+		<span class="k">if</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;num&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+  
+		<span class="k">if</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;add&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;sub&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;mul&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;div&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;abs&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+  
+
+		<span class="c1"># logical operations </span>
+		<span class="k">if</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;greater&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;greater_equal&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;less&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;less_equal&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;equal&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;not_equal&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		
+		<span class="c1"># boolean operations </span>
+		<span class="k">if</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;and&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;or&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+		<span class="k">elif</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;not&#39;</span><span class="p">:</span>
+			<span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+		<span class="k">if</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;var_assign&#39;</span><span class="p">:</span>
+			<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">walkTree</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+			<span class="k">return</span> <span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+  
+		<span class="k">if</span> <span class="n">node</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;var&#39;</span><span class="p">:</span>
+			<span class="k">try</span><span class="p">:</span>
+				<span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+			<span class="k">except</span> <span class="ne">LookupError</span><span class="p">:</span>
+				<span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;undefined variable &#39;&quot;</span><span class="o">+</span><span class="n">node</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;&#39;&quot;</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="trigger_get_tree"><a class="viewcode-back" href="../common/trigger.html#trigger.trigger_get_tree">[docs]</a><span class="k">def</span> <span class="nf">trigger_get_tree</span><span class="p">(</span><span class="n">expression</span><span class="p">):</span>
+	<span class="n">lexer</span> <span class="o">=</span> <span class="n">TriggerLexer</span><span class="p">()</span>
+	<span class="n">parser</span> <span class="o">=</span> <span class="n">TriggerParser</span><span class="p">()</span>
+	<span class="n">tree</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">lexer</span><span class="o">.</span><span class="n">tokenize</span><span class="p">(</span><span class="n">expression</span><span class="p">))</span>
+	<span class="k">return</span> <span class="n">tree</span></div>
+
+<div class="viewcode-block" id="trigger_evaluate_tree"><a class="viewcode-back" href="../common/trigger.html#trigger.trigger_evaluate_tree">[docs]</a><span class="k">def</span> <span class="nf">trigger_evaluate_tree</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+	<span class="n">exp</span> <span class="o">=</span> <span class="n">TriggerEvaluate</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+	<span class="k">return</span> <span class="n">exp</span><span class="o">.</span><span class="n">evaluate</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="trigger_evaluate"><a class="viewcode-back" href="../common/trigger.html#trigger.trigger_evaluate">[docs]</a><span class="k">def</span> <span class="nf">trigger_evaluate</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+	<span class="n">tree</span> <span class="o">=</span> <span class="kc">None</span>
+	<span class="n">ret</span> <span class="o">=</span> <span class="kc">None</span> 
+	<span class="k">try</span><span class="p">:</span> 
+		<span class="n">tree</span> <span class="o">=</span> <span class="n">trigger_get_tree</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
+		<span class="n">ret</span> <span class="o">=</span> <span class="n">trigger_evaluate_tree</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+	<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+		<span class="k">return</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+	<span class="k">return</span> <span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="s2">&quot;success&quot;</span><span class="p">)</span> </div>
+
+<div class="viewcode-block" id="trigger_verify"><a class="viewcode-back" href="../common/trigger.html#trigger.trigger_verify">[docs]</a><span class="k">def</span> <span class="nf">trigger_verify</span><span class="p">(</span><span class="n">expression</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+	<span class="n">tree</span> <span class="o">=</span> <span class="kc">None</span>
+	<span class="n">ret</span> <span class="o">=</span> <span class="kc">True</span> 
+	<span class="k">try</span><span class="p">:</span> 
+		<span class="n">tree</span> <span class="o">=</span> <span class="n">trigger_get_tree</span><span class="p">(</span><span class="n">expression</span><span class="p">)</span>
+		<span class="n">trigger_evaluate_tree</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">env</span><span class="p">)</span>
+	<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+		<span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+	<span class="k">return</span> <span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="s2">&quot;success&quot;</span><span class="p">)</span> </div>
+
+
+<div class="viewcode-block" id="LeotestTriggerMode"><a class="viewcode-back" href="../common/trigger.html#trigger.LeotestTriggerMode">[docs]</a><span class="k">class</span> <span class="nc">LeotestTriggerMode</span><span class="p">:</span>
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fields</span><span class="p">,</span> <span class="n">triggers</span><span class="p">,</span> <span class="n">history</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">verify</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;init&quot;&quot;&quot;</span>
+
+		<span class="bp">self</span><span class="o">.</span><span class="n">triggers</span> <span class="o">=</span> <span class="n">triggers</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="p">{}</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">trigger_trees</span> <span class="o">=</span> <span class="p">{}</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">history</span> <span class="o">=</span> <span class="n">history</span>
+
+		<span class="k">if</span> <span class="ow">not</span> <span class="n">verify</span><span class="p">:</span>
+			<span class="k">for</span> <span class="n">trigger</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">triggers</span><span class="p">:</span>
+				<span class="bp">self</span><span class="o">.</span><span class="n">trigger_trees</span><span class="p">[</span><span class="n">trigger</span><span class="p">]</span> <span class="o">=</span> <span class="n">trigger_get_tree</span><span class="p">(</span><span class="n">trigger</span><span class="p">)</span>
+				<span class="nb">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trigger_trees</span><span class="p">[</span><span class="n">trigger</span><span class="p">])</span>
+		
+		<span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">:</span>
+			<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+			<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_avg&quot;</span> <span class="o">%</span> <span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+			<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">history</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+				<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">i</span><span class="p">)]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+	
+<div class="viewcode-block" id="LeotestTriggerMode.evaluate_triggers"><a class="viewcode-back" href="../common/trigger.html#trigger.LeotestTriggerMode.evaluate_triggers">[docs]</a>	<span class="k">def</span> <span class="nf">evaluate_triggers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;evaluate here&quot;&quot;&quot;</span>
+
+		<span class="k">for</span> <span class="n">trigger</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">triggers</span><span class="p">:</span>
+			<span class="n">ret</span> <span class="o">=</span> <span class="n">trigger_evaluate_tree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trigger_trees</span><span class="p">[</span><span class="n">trigger</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">)</span>
+			<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Trigger=&#39;</span><span class="si">%s</span><span class="s2">&#39; eval=&#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">trigger</span><span class="p">,</span> <span class="n">ret</span><span class="p">))</span></div>
+	
+<div class="viewcode-block" id="LeotestTriggerMode.verify_triggers"><a class="viewcode-back" href="../common/trigger.html#trigger.LeotestTriggerMode.verify_triggers">[docs]</a>	<span class="k">def</span> <span class="nf">verify_triggers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;verify triggers&quot;&quot;&quot;</span>
+
+		<span class="n">success</span> <span class="o">=</span> <span class="kc">True</span>
+		<span class="n">err_msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+		<span class="k">for</span> <span class="n">trigger</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">triggers</span><span class="p">:</span>
+			<span class="n">ret</span><span class="p">,</span> <span class="n">msg</span> <span class="o">=</span> <span class="n">trigger_verify</span><span class="p">(</span><span class="n">trigger</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">)</span>
+			
+			<span class="k">if</span> <span class="ow">not</span> <span class="n">ret</span><span class="p">:</span>
+				<span class="n">success</span> <span class="o">=</span> <span class="kc">False</span> 
+				<span class="n">err_msg</span> <span class="o">=</span> <span class="n">msg</span>
+				<span class="k">break</span> 
+		
+		<span class="k">return</span> <span class="p">(</span><span class="n">success</span><span class="p">,</span> <span class="s1">&#39;trigger: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">err_msg</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestTriggerMode.update_field"><a class="viewcode-back" href="../common/trigger.html#trigger.LeotestTriggerMode.update_field">[docs]</a>	<span class="k">def</span> <span class="nf">update_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+		
+		<span class="c1"># update history </span>
+		<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">history</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+			<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">i</span><span class="p">)]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">)]</span>
+
+		<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_1&quot;</span> <span class="o">%</span> <span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+
+		<span class="nb">sum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="n">field</span><span class="p">]</span>
+		<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">history</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+			<span class="nb">sum</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">i</span><span class="p">)]</span>
+		
+		<span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_avg&quot;</span> <span class="o">%</span> <span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">sum</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">history</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+
+		<span class="bp">self</span><span class="o">.</span><span class="n">evaluate_triggers</span><span class="p">()</span></div></div>
+
+
+<div class="viewcode-block" id="verify_trigger_default"><a class="viewcode-back" href="../common/trigger.html#trigger.verify_trigger_default">[docs]</a><span class="k">def</span> <span class="nf">verify_trigger_default</span><span class="p">(</span><span class="n">trigger</span><span class="p">):</span>
+
+	<span class="n">trigger</span> <span class="o">=</span> <span class="n">LeotestTriggerMode</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="n">FIELDS</span><span class="p">,</span>
+								<span class="n">triggers</span><span class="o">=</span><span class="p">[</span><span class="n">trigger</span><span class="p">],</span>
+								<span class="n">verify</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+	<span class="k">return</span> <span class="n">trigger</span><span class="o">.</span><span class="n">verify_triggers</span><span class="p">()</span></div>
+
+<span class="c1"># print(trigger.evaluate_triggers())</span>
+
+<span class="c1"># print(trigger.verify_triggers())</span>
+<span class="c1"># expr = &quot;|5-9| == 4&quot;</span>
+<span class="c1"># tree = trigger_get_tree(expr)</span>
+<span class="c1"># print(trigger_evaluate(tree, {}))</span>
+			
+			
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Shubham Tiwari, Aryan Taneja, Saksham Bhushan, M. Kassem, Nishanth Sastry, Aravindh Raman, Debopam Bhattacherjee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

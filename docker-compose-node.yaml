@@ -1,0 +1,134 @@
+version: "3.7"
+services:
+  node:
+    build:
+      context: . 
+      dockerfile: "docker/node/Dockerfile"
+    image: "leotest-scheduler"
+    command: 
+      - "--nodeid=test-node"
+      - "--grpc-hostname=<Orchestrator-node-IP-Address>"
+      - "--grpc-port=<Port>"
+      - "--interval=10"
+      - "--workdir=/leotest/"
+      - "--artifactdir=/artifacts/"
+      - "--executor-config=/executor-config.yaml"
+      - "--access-token=<Access-Token>"
+    
+    volumes: 
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /datadrive1/leoscope/jobs:/artifacts
+      - ./executor-config.yaml:/executor-config.yaml
+
+    # network_mode: "host"
+    networks:
+      - leotest-net
+    
+    depends_on:
+      - redis
+      - mqtt
+      - memcached
+  
+  kernel:
+    build:
+      context: . 
+      dockerfile: "docker/services/kernel/Dockerfile"
+    image: "leotest-kernel-service"
+    privileged: true
+    hostname: "leotest_kernel_service"
+    command: 
+      - "--nodeid=test-node"
+      - "--grpc-hostname=<IP Address>"
+      - "--grpc-port=<Port>"
+      - "--access-token=<Access Token>"
+      - "--leotest-net=global-testbed_leotest-net"
+    
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock 
+      - /sys:/sys:rw
+
+    # network_mode: "host"
+    networks:
+      - leotest-net
+    
+  memcached:
+    container_name: leotest-session-cache
+    image: memcached:latest
+    # ports:
+    #     - "11211:11211"
+
+    # network_mode: "host"
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+    networks:
+      - leotest-net
+    
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/nc","-z","127.0.0.1","11211"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+  
+  mqtt:
+    container_name: leotest-message-queue
+    image: eclipse-mosquitto:latest
+    volumes:
+      - ./config/mosquitto:/mosquitto
+
+    ports:
+      - 1883:1883
+      - 9001:9001 
+    networks:
+      - leotest-net
+    
+    healthcheck:
+      test: ["CMD-SHELL", "timeout -t 5 mosquitto_sub -t '$$SYS/#' -C 1 | grep -v Error || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+  
+  redis:
+    container_name: leotest-tmp-store
+    image: redis 
+    # ports:
+    # - 6379:6379
+    networks:
+      - leotest-net
+
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+  
+  # python3 dish_grpc_mqtt.py --port 1883 -t 2 status
+  starlink-grpc-tools:
+    container_name: starlink-grpc-tools
+    build:
+      context: . 
+      dockerfile: "docker/starlink-grpc-tools/Dockerfile"
+    image: "leotest-starlink-api"
+
+    # network_mode: "host"
+    entrypoint: "python"
+    command: 
+      - "check_grpc.py"
+      - "dish_grpc_mqtt.py"
+      - "--hostname"
+      - "mqtt"
+      - "--port"
+      - "1883"
+      - "-t"
+      - "2"
+      - "status"
+    
+    networks:
+      - leotest-net
+
+networks:
+  leotest-net:
+    driver: bridge 
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.27.0.0/16

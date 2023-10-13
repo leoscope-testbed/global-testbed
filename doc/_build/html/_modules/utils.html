@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>utils &mdash; LEOScope 00.00.01 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LEOScope
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">orchestrator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LEOScope</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span> 
+<span class="kn">import</span> <span class="nn">grpc</span>
+<span class="kn">import</span> <span class="nn">time</span> 
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="c1"># from datetime import timedelta</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">from</span> <span class="nn">pyroute2</span> <span class="kn">import</span> <span class="n">IPRoute</span>
+<span class="kn">from</span> <span class="nn">azure.storage.blob</span> <span class="kn">import</span> <span class="n">BlobServiceClient</span><span class="p">,</span> <span class="n">BlobClient</span><span class="p">,</span> <span class="n">ContainerClient</span><span class="p">,</span>\
+  <span class="n">ResourceTypes</span><span class="p">,</span> <span class="n">AccountSasPermissions</span><span class="p">,</span> <span class="n">generate_blob_sas</span>
+
+<div class="viewcode-block" id="time_now"><a class="viewcode-back" href="../common/utils.html#utils.time_now">[docs]</a><span class="k">def</span> <span class="nf">time_now</span><span class="p">():</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">now</span></div>
+
+<div class="viewcode-block" id="get_public_ip"><a class="viewcode-back" href="../common/utils.html#utils.get_public_ip">[docs]</a><span class="k">def</span> <span class="nf">get_public_ip</span><span class="p">():</span>
+    <span class="n">ip</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;https://checkip.amazonaws.com&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">ip</span></div>
+
+<div class="viewcode-block" id="execute"><a class="viewcode-back" href="../common/utils.html#utils.execute">[docs]</a><span class="k">def</span> <span class="nf">execute</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">opts</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+        <span class="n">opts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+    
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">opts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">key</span><span class="p">)</span>
+        <span class="n">opts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>      
+
+    <span class="nb">print</span><span class="p">(</span><span class="n">opts</span><span class="p">)</span>
+    <span class="n">starttime</span> <span class="o">=</span> <span class="n">time_now</span><span class="p">()</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">opts</span><span class="p">,</span>
+                        <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">endtime</span> <span class="o">=</span> <span class="n">time_now</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">starttime</span><span class="p">,</span> <span class="n">endtime</span><span class="p">,</span> <span class="n">output</span></div>
+
+<div class="viewcode-block" id="route"><a class="viewcode-back" href="../common/utils.html#utils.route">[docs]</a><span class="k">def</span> <span class="nf">route</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">gw</span><span class="p">,</span> <span class="n">dev</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">IPRoute</span><span class="p">()</span> <span class="k">as</span> <span class="n">ipr</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ipr</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">dst</span><span class="o">=</span><span class="n">ip</span><span class="p">,</span> <span class="n">gateway</span><span class="o">=</span><span class="n">gw</span><span class="p">,</span> <span class="n">oif</span><span class="o">=</span><span class="n">ipr</span><span class="o">.</span><span class="n">link_lookup</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+            <span class="c1"># routes = ipr.get_routes(family=socket.AF_INET, dst=ip)</span>
+            <span class="c1"># print(routes)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;WARN: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="AzureDirectoryClient"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient">[docs]</a><span class="k">class</span> <span class="nc">AzureDirectoryClient</span><span class="p">:</span>
+  <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">connection_string</span><span class="p">,</span> <span class="n">container_name</span><span class="p">):</span>
+    <span class="n">service_client</span> <span class="o">=</span> <span class="n">BlobServiceClient</span><span class="o">.</span><span class="n">from_connection_string</span><span class="p">(</span>
+      <span class="n">connection_string</span><span class="p">,</span>
+      <span class="n">max_single_put_size</span><span class="o">=</span><span class="mi">4</span><span class="o">*</span><span class="mi">1024</span><span class="o">*</span><span class="mi">1024</span>
+    <span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">container_name</span> <span class="o">=</span> <span class="n">container_name</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">connection_string</span> <span class="o">=</span> <span class="n">connection_string</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">service_client</span><span class="o">.</span><span class="n">get_container_client</span><span class="p">(</span><span class="n">container_name</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AzureDirectoryClient.upload"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.upload">[docs]</a>  <span class="k">def</span> <span class="nf">upload</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Upload a file or directory to a path inside the container</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">source</span><span class="p">)):</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">upload_dir</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.upload_file"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.upload_file">[docs]</a>  <span class="k">def</span> <span class="nf">upload_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Upload a single file to a path inside the container</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Uploading </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">dest</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">data</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">upload_blob</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">dest</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">connection_timeout</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.upload_dir"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.upload_dir">[docs]</a>  <span class="k">def</span> <span class="nf">upload_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Upload a directory to a path inside the container</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="n">dest</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="k">else</span> <span class="n">dest</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>
+    <span class="n">prefix</span> <span class="o">+=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">source</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+      <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+        <span class="n">dir_part</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">source</span><span class="p">)</span>
+        <span class="n">dir_part</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="n">dir_part</span> <span class="o">==</span> <span class="s1">&#39;.&#39;</span> <span class="k">else</span> <span class="n">dir_part</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">blob_path</span> <span class="o">=</span> <span class="n">prefix</span> <span class="o">+</span> <span class="n">dir_part</span> <span class="o">+</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">upload_file</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">blob_path</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.download"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.download">[docs]</a>  <span class="k">def</span> <span class="nf">download</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Download a file or directory to a path on the local filesystem</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dest</span><span class="p">:</span>
+      <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;A destination must be provided&#39;</span><span class="p">)</span>
+
+    <span class="n">blobs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ls_files</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">blobs</span><span class="p">:</span>
+      <span class="c1"># if source is a directory, dest must also be a directory</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="n">source</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">source</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+        <span class="n">source</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span>
+      <span class="k">if</span> <span class="ow">not</span> <span class="n">dest</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+        <span class="n">dest</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span>
+      <span class="c1"># append the directory name from source to the destination</span>
+      <span class="n">dest</span> <span class="o">+=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">source</span><span class="p">))</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>
+
+      <span class="n">blobs</span> <span class="o">=</span> <span class="p">[</span><span class="n">source</span> <span class="o">+</span> <span class="n">blob</span> <span class="k">for</span> <span class="n">blob</span> <span class="ow">in</span> <span class="n">blobs</span><span class="p">]</span>
+      <span class="k">for</span> <span class="n">blob</span> <span class="ow">in</span> <span class="n">blobs</span><span class="p">:</span>
+        <span class="n">blob_dest</span> <span class="o">=</span> <span class="n">dest</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">blob</span><span class="p">,</span> <span class="n">source</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">download_file</span><span class="p">(</span><span class="n">blob</span><span class="p">,</span> <span class="n">blob_dest</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">download_file</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.download_file"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.download_file">[docs]</a>  <span class="k">def</span> <span class="nf">download_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">dest</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;source=&#39;</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="s2">&quot;dest=&quot;</span><span class="p">,</span> <span class="n">dest</span><span class="p">)</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Download a single file to a path on the local filesystem</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># dest is a directory if ending with &#39;/&#39; or &#39;.&#39;, otherwise it&#39;s a file</span>
+    <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">):</span>
+      <span class="n">dest</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span>
+    <span class="n">blob_dest</span> <span class="o">=</span> <span class="n">dest</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">source</span><span class="p">)</span> <span class="k">if</span> <span class="n">dest</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">dest</span>
+    <span class="c1"># blob_dest = blob_dest.replace(&quot;:&quot;, &quot;#&quot;)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Downloading </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s1"> to </span><span class="si">{</span><span class="n">blob_dest</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">blob_dest</span><span class="p">),</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">bc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_blob_client</span><span class="p">(</span><span class="n">blob</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">dest</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">blob_dest</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+          <span class="n">data</span> <span class="o">=</span> <span class="n">bc</span><span class="o">.</span><span class="n">download_blob</span><span class="p">()</span>
+          <span class="n">file</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">readall</span><span class="p">())</span></div>
+  
+<div class="viewcode-block" id="AzureDirectoryClient.check_blob_exists"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.check_blob_exists">[docs]</a>  <span class="k">def</span> <span class="nf">check_blob_exists</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;source=&#39;</span><span class="p">,</span> <span class="n">source</span><span class="p">)</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Check if a blob exists</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c1"># blob_dest = blob_dest.replace(&quot;:&quot;, &quot;#&quot;)</span>
+    <span class="n">bc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_blob_client</span><span class="p">(</span><span class="n">blob</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">bc</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.ls_files"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.ls_files">[docs]</a>  <span class="k">def</span> <span class="nf">ls_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    List files under a path, optionally recursively</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+      <span class="n">path</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span>
+
+    <span class="n">blob_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">list_blobs</span><span class="p">(</span><span class="n">name_starts_with</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">blob</span> <span class="ow">in</span> <span class="n">blob_iter</span><span class="p">:</span>
+      <span class="n">relative_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">blob</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">recursive</span> <span class="ow">or</span> <span class="ow">not</span> <span class="s1">&#39;/&#39;</span> <span class="ow">in</span> <span class="n">relative_path</span><span class="p">:</span>
+        <span class="n">files</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">relative_path</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">files</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.ls_dirs"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.ls_dirs">[docs]</a>  <span class="k">def</span> <span class="nf">ls_dirs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    List directories under a path, optionally recursively</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+      <span class="n">path</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span>
+
+    <span class="n">blob_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">list_blobs</span><span class="p">(</span><span class="n">name_starts_with</span><span class="o">=</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">dirs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">blob</span> <span class="ow">in</span> <span class="n">blob_iter</span><span class="p">:</span>
+      <span class="n">relative_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span><span class="n">blob</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">path</span><span class="p">))</span>
+      <span class="k">if</span> <span class="n">relative_dir</span> <span class="ow">and</span> <span class="p">(</span><span class="n">recursive</span> <span class="ow">or</span> <span class="ow">not</span> <span class="s1">&#39;/&#39;</span> <span class="ow">in</span> <span class="n">relative_dir</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">relative_dir</span> <span class="ow">in</span> <span class="n">dirs</span><span class="p">:</span>
+        <span class="n">dirs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">relative_dir</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">dirs</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.rm"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.rm">[docs]</a>  <span class="k">def</span> <span class="nf">rm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Remove a single file, or remove a path recursively</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">recursive</span><span class="p">:</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">rmdir</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+      <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Deleting </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+      <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">delete_blob</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.rmdir"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.rmdir">[docs]</a>  <span class="k">def</span> <span class="nf">rmdir</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Remove a directory and its contents recursively</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">blobs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ls_files</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">blobs</span><span class="p">:</span>
+      <span class="k">return</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+      <span class="n">path</span> <span class="o">+=</span> <span class="s1">&#39;/&#39;</span>
+    <span class="n">blobs</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span> <span class="o">+</span> <span class="n">blob</span> <span class="k">for</span> <span class="n">blob</span> <span class="ow">in</span> <span class="n">blobs</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Deleting </span><span class="si">{</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">blobs</span><span class="p">)</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">delete_blobs</span><span class="p">(</span><span class="o">*</span><span class="n">blobs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AzureDirectoryClient.get_sas_url"><a class="viewcode-back" href="../common/utils.html#utils.AzureDirectoryClient.get_sas_url">[docs]</a>  <span class="k">def</span> <span class="nf">get_sas_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">blob_name</span><span class="p">):</span>
+      
+      <span class="n">blob_service_client</span> <span class="o">=</span> <span class="n">BlobServiceClient</span><span class="o">.</span><span class="n">from_connection_string</span><span class="p">(</span>
+         <span class="bp">self</span><span class="o">.</span><span class="n">connection_string</span>
+      <span class="p">)</span>
+      <span class="n">account_name</span> <span class="o">=</span> <span class="n">blob_service_client</span><span class="o">.</span><span class="n">account_name</span>
+      <span class="n">sas_token</span> <span class="o">=</span> <span class="n">generate_blob_sas</span><span class="p">(</span>
+          <span class="n">account_name</span><span class="o">=</span><span class="n">account_name</span><span class="p">,</span>
+          <span class="n">account_key</span><span class="o">=</span><span class="n">blob_service_client</span><span class="o">.</span><span class="n">credential</span><span class="o">.</span><span class="n">account_key</span><span class="p">,</span>
+          <span class="n">container_name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">container_name</span><span class="p">,</span>
+          <span class="n">blob_name</span><span class="o">=</span><span class="n">blob_name</span><span class="p">,</span>
+          <span class="n">permission</span><span class="o">=</span><span class="n">AccountSasPermissions</span><span class="p">(</span><span class="n">read</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+          <span class="n">expiry</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+    <span class="p">)</span>
+
+      <span class="k">return</span> <span class="s2">&quot;https://&quot;</span><span class="o">+</span><span class="n">account_name</span><span class="o">+</span><span class="s2">&quot;.blob.core.windows.net/&quot;</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">container_name</span><span class="o">+</span><span class="s2">&quot;/&quot;</span>\
+                                  <span class="o">+</span><span class="n">blob_name</span><span class="o">+</span><span class="s2">&quot;?&quot;</span><span class="o">+</span><span class="n">sas_token</span></div></div>
+
+<span class="c1"># def make_archive(source, name):</span>
+<span class="c1">#         base = name</span>
+<span class="c1">#         name = base.split(&#39;.&#39;)[0]</span>
+<span class="c1">#         format = base.split(&#39;.&#39;)[1]</span>
+<span class="c1">#         archive_from = os.path.dirname(source)</span>
+<span class="c1">#         archive_to = os.path.basename(source.strip(os.sep))</span>
+<span class="c1">#         shutil.make_archive(name, format, archive_from, archive_to)</span>
+<span class="c1">#         # shutil.move(&#39;%s.%s&#39;%(name,format), destination)</span>
+
+<div class="viewcode-block" id="make_archive"><a class="viewcode-back" href="../common/utils.html#utils.make_archive">[docs]</a><span class="k">def</span> <span class="nf">make_archive</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">destination</span><span class="p">):</span>
+    <span class="n">base_name</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">destination</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="nb">format</span> <span class="o">=</span> <span class="n">destination</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">root_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">source</span><span class="p">)</span>
+    <span class="n">base_dir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="p">))</span>
+    <span class="n">shutil</span><span class="o">.</span><span class="n">make_archive</span><span class="p">(</span><span class="n">base_name</span><span class="p">,</span> <span class="nb">format</span><span class="p">,</span> <span class="n">root_dir</span><span class="p">,</span> <span class="n">base_dir</span><span class="p">)</span></div>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Utility function to poll for starlink terminal gRPC data</span>
+<span class="sd">in CSV format  </span>
+<span class="sd">&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="TerminalGrpcDataCsv"><a class="viewcode-back" href="../common/utils.html#utils.TerminalGrpcDataCsv">[docs]</a><span class="k">class</span> <span class="nc">TerminalGrpcDataCsv</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">api_path</span><span class="p">,</span> <span class="n">logfile</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exec_hook</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">/dish_grpc_text.py&quot;</span> <span class="o">%</span> <span class="n">api_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logfile</span> <span class="o">=</span> <span class="n">logfile</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="kc">None</span> 
+
+<div class="viewcode-block" id="TerminalGrpcDataCsv.run"><a class="viewcode-back" href="../common/utils.html#utils.TerminalGrpcDataCsv.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_async</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logfile</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span>
+        <span class="n">opts</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;/usr/local/bin/python&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exec_hook</span><span class="p">,</span> <span class="s1">&#39;status&#39;</span><span class="p">,</span> <span class="s1">&#39;-t&#39;</span><span class="p">,</span> <span class="s1">&#39;1&#39;</span><span class="p">]</span>
+        <span class="n">opts1</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[:]</span>
+        <span class="n">opts1</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;-H&#39;</span><span class="p">])</span>
+        <span class="n">opts2</span> <span class="o">=</span> <span class="n">opts</span><span class="p">[:]</span> 
+        <span class="n">opts2</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;-O&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">logfile</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;gRPC API: writing headers&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">opts1</span><span class="p">)</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">opts1</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">f</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;gRPC API: polling grpc data&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">opts2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">opts2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_async</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span></div>
+    
+<div class="viewcode-block" id="TerminalGrpcDataCsv.stop"><a class="viewcode-back" href="../common/utils.html#utils.TerminalGrpcDataCsv.stop">[docs]</a>    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">p</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;gRPC API: error -- process is None&#39;</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Shubham Tiwari, Aryan Taneja, Saksham Bhushan, M. Kassem, Nishanth Sastry, Aravindh Raman, Debopam Bhattacherjee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
