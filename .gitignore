@@ -1,0 +1,6 @@
+cli/__pycache__
+common/__pycache__
+common/sly/__pycache__/
+node/__pycache__
+orchestrator/__pycache__
+services/kernel/__pycache__
