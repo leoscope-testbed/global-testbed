@@ -104,3 +104,17 @@ A deployed testbed with this version of the code collects information like IP ad
 ## How to contribute
 
 The testbed code is stable but work-in-progress still, with new features to come up in the future. Open-source contributions are welcome. Please get in touch with the maintainers specified in MAINTAINERS.md to contribute to this repository.
+
+## Initial Developers.
+
+Below we list the initial Contributors. Maintainer names are omitted for brevity.
+
+| **NAME**           | **Email ID** |
+|--------------------|--------------|
+| Shubham Tiwari     |shubhamtiwaribits@gmail.com               |
+|                    | tshubham@cs.washington.edu
+| Aryan Taneja       |t-arytaneja@microsoft.com             |
+| Saksham Bhushan    |t-sbhushan@microsoft.com             |
+| Vinod Khandkar     |v.khandkar@surrey.ac.uk             |
+| Abdullahi Abubakar |a.abubakar@surrey.ac.uk             |
+| Roger Zhang        |yz02055@surrey.ac.uk             |
