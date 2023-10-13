@@ -107,7 +107,7 @@ The testbed code is stable but work-in-progress still, with new features to come
 
 ## Initial Developers.
 
-Below we list the initial Contributors. Maintainer names are omitted for brevity.
+Below we list the initial developers of the testbed. Maintainer names are omitted for brevity.
 
 | **NAME**           | **Email ID** |
 |--------------------|--------------|
