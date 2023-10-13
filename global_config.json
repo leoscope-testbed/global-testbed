@@ -1,0 +1,13 @@
+{
+    "datastore": {
+        "blob": {
+            "connectionString": "<Storage-account-connection-string>",
+            "container": "leotest",
+            "artifactPath": "jobs/"
+        }
+    },
+
+    "weather": {
+        "apikey": "<weather-api-key>"
+    }
+}

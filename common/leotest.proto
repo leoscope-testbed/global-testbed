@@ -1,0 +1,574 @@
+/* Defines the gRPC service running at the Orchestrator and all the remote procedures available with it. */
+/* python3 -m grpc_tools.protoc --proto_path=. --python_out=. --grpc_python_out=. leotest.proto */
+
+syntax = "proto3"; 
+package unary; 
+
+service LeotestOrchestrator {
+    /* The main gRPC service that runs in the orchestrator. */
+    
+    rpc report_heartbeat(message_heartbeat) 
+            returns (message_heartbeat_response) {}
+    
+    /* global settings */
+    rpc update_global_config(message_update_global_config)
+            returns (message_update_global_config_response) {}
+
+    rpc get_global_config(message_get_global_config)
+            returns (message_get_global_config_response) {}
+
+    /* user register/get/modify/remove */
+
+    rpc register_user(message_register_user)
+            returns (message_register_user_response) {}
+    
+    rpc get_user(message_get_user)
+            returns (message_get_user_response) {}
+    
+    rpc modify_user(message_modify_user)
+            returns (message_modify_user_response) {}
+    
+    rpc delete_user(message_delete_user)
+            returns (message_delete_user_response) {}
+    
+    /* job allocate/modify/get/delete */
+
+    rpc schedule_job(message_schedule_job)
+            returns (message_schedule_job_response) {}
+    
+    rpc get_job_by_id(message_get_job_by_id)
+            returns (message_get_job_by_id_response) {}
+
+    rpc get_jobs_by_userid(message_get_jobs_by_userid)
+            returns (message_get_jobs_by_userid_response) {}
+
+    rpc get_jobs_by_nodeid(message_get_jobs_by_nodeid)
+            returns (message_get_jobs_by_nodeid_response) {}
+    
+    rpc reschedule_job_nearest(message_reschedule_job)
+            returns (message_reschedule_job_response) {}
+
+    rpc modify_job(message_modify_job)
+            returns (message_modify_job_response) {}
+    
+    rpc delete_job_by_id(message_delete_job_by_id)
+            returns (message_delete_job_by_id_response) {} 
+    
+    rpc delete_jobs_by_nodeid(message_delete_jobs_by_nodeid)
+            returns (message_delete_jobs_by_nodeid_response) {} 
+
+    rpc update_run(message_update_run)
+            returns (message_update_run_response) {} 
+    
+    rpc get_runs(message_get_runs)
+            returns (message_get_runs_response) {}
+    
+    rpc get_scheduled_runs(message_get_scheduled_runs)
+            returns (message_get_scheduled_runs_response) {}
+    
+    /* node registeration */
+    rpc register_node(message_register_node)
+            returns (message_register_node_response) {}
+
+    rpc get_nodes(message_get_nodes)
+            returns (message_get_nodes_response) {}
+    
+    rpc update_node(message_update_node)
+            returns (message_update_node_response) {}
+
+    rpc delete_node(message_delete_node)
+            returns (message_delete_node_response) {}
+    
+    rpc set_scavenger_status(message_set_scavenger_status)
+            returns (message_set_scavenger_status_response) {}
+
+    rpc get_scavenger_status(message_get_scavenger_status)
+            returns (message_get_scavenger_status_response) {}
+
+    /* task management */
+    rpc schedule_task(message_schedule_task)
+            returns (message_schedule_task_response) {}
+    
+    rpc get_tasks(message_get_tasks)
+            returns (message_get_tasks_response) {}
+    
+    rpc update_task(message_update_task)
+            returns (message_update_task_response) {}
+    
+    /* kernel services */
+    rpc kernel_access(message_kernel_access)
+            returns (message_kernel_access_response) {}
+
+}
+
+enum response_state {
+    SUCCESS = 0;
+    FAILED = 1; 
+}
+
+/* global settings */
+
+message blob_settings {
+    string connectionString = 1; 
+    string container = 2; 
+    string artifactPath = 3; 
+}
+
+message datastore_settings {
+    blob_settings blob = 1; 
+}
+
+message weather_api_settings {
+    string apikey = 1; 
+}
+
+message settings {
+    datastore_settings datastore = 1; 
+    weather_api_settings weather = 2; 
+}
+
+message message_update_global_config {
+    settings config = 1; 
+}
+
+message message_update_global_config_response {
+    response_state state = 1; 
+    string message = 2; 
+}
+
+message message_get_global_config {
+
+}
+
+message message_get_global_config_response {
+    settings config = 1;
+}
+
+/* TODO: define job states */
+
+/* Heartbeat messages */
+message message_heartbeat {
+    string nodeid = 1; 
+}
+
+message message_heartbeat_response {
+    bool received = 1; 
+}
+
+
+/* user register/get/modify/remove */
+
+enum user_roles {
+    ADMIN = 0;
+    USER = 1; 
+    NODE = 2;
+    USER_PRIV = 3;
+    NODE_PRIV = 4;
+}
+
+message message_register_user {
+    string id = 1; 
+    string name = 2; 
+    user_roles role = 3; 
+    string team = 4; 
+}
+
+message message_register_user_response {
+    response_state state = 1; 
+    string message = 2;
+}
+
+message message_get_user {
+    string userid = 1; 
+}
+
+message message_get_user_response {
+    bool exists = 1; 
+    string id = 2; 
+    string name = 3; 
+    user_roles role = 4; 
+    string team = 5; 
+}
+
+
+message message_modify_user {
+    string id = 1; 
+    string name = 2; 
+    user_roles role = 3; 
+    string team = 5; 
+}
+
+message message_modify_user_response {
+    response_state state = 1; 
+    string message = 2; 
+}
+
+message message_delete_user {
+    string userid = 1;
+}
+
+message message_delete_user_response {
+    response_state state = 1; 
+    string message = 2; 
+}
+
+
+/* job allocate/modify/get/delete */
+enum job_type {
+    CRON = 0;
+    ATQ = 1;
+}
+
+message job_params {
+    string mode = 1; 
+    string deploy = 2; 
+    string execute = 3; 
+    string finish = 4;
+}
+
+message job_schedule_cron {
+    string minute = 1;
+    string hour = 2;
+    string day_of_month = 3;  
+    string month = 4;
+    string day_of_week = 5; 
+}
+
+message job {
+    string id = 1; 
+    string nodeid = 2; 
+    job_type type = 3; 
+    job_params params = 4;  
+    string schedule = 5;
+    string start_date = 6; 
+    string end_date = 7; 
+    int32 length_secs = 8; 
+    bool overhead = 9;
+    optional string server = 10;
+    optional string trigger = 11; 
+    string userid = 12; 
+    string config = 13;
+}
+
+/* same as job */
+message message_schedule_job {
+    string id = 1; 
+    string nodeid = 2; 
+    job_type type = 3; 
+    job_params params = 4;  
+    string schedule = 5;
+    string start_date = 6; 
+    string end_date = 7; 
+    int32 length_secs = 8; 
+    bool overhead = 9; 
+    optional string server = 10;
+    optional string trigger = 11;
+    string userid = 12;
+    string config = 13;
+}
+
+message message_schedule_job_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message message_get_job_by_id {
+    string jobid = 1;
+}
+
+message message_get_job_by_id_response {
+    bool exists = 1; 
+    string id = 2; 
+    string nodeid = 3; 
+    job_type type = 4; 
+    job_params params = 5;  
+    string schedule = 6;
+    string userid = 7;
+    string trigger = 8;
+    string config = 9;
+    string server = 10;
+    bool overhead = 11;
+    string start_date = 12; 
+    string end_date = 13; 
+}
+
+message message_get_jobs_by_userid {
+    string userid = 1;
+}
+
+message message_get_jobs_by_userid_response {
+    bool exists = 1; 
+    string message = 2;
+    repeated job jobs = 3;
+}
+
+message message_get_jobs_by_nodeid {
+    string nodeid = 1;
+}
+
+message message_get_jobs_by_nodeid_response {
+    bool exists = 1; 
+    repeated job jobs = 2; 
+}
+
+message message_reschedule_job {
+    string jobid = 1; 
+    string starttime = 2; 
+    string endtime = 3;
+}
+
+message message_reschedule_job_response {
+    bool rescheduled = 1; 
+    string message = 2; 
+}
+
+message message_modify_job {
+
+}
+
+message message_modify_job_response {
+
+}
+
+message message_delete_job_by_id {
+    string jobid = 1;
+}
+
+message message_delete_job_by_id_response {
+    bool exists = 1;
+    string message = 2; 
+}
+
+message message_delete_jobs_by_nodeid {
+    string nodeid = 1; 
+}
+
+message message_delete_jobs_by_nodeid_response {
+    int32 num_deleted = 1;
+    string message = 2; 
+}
+
+message run_instance {
+    string runid = 1; 
+    string jobid = 2; 
+    string nodeid = 3; 
+    string userid = 4; 
+    string start_time = 5;
+    string end_time = 6;
+    string last_updated = 7; 
+    string blob_url = 8;  
+    string status = 9; 
+    string status_message = 10; 
+}
+
+message message_update_run {
+    run_instance run = 1; 
+}
+
+message message_update_run_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message message_time_range {
+    string start = 1; 
+    string end = 2; 
+}
+
+message message_get_runs {
+    optional string runid = 1;
+    optional string jobid = 2; 
+    optional string nodeid = 3; 
+    optional string userid = 4; 
+    optional message_time_range time_range = 5; 
+    optional int32 limit = 6;   
+}
+
+message message_get_runs_response {
+    repeated run_instance runs = 1;
+}
+
+message _node {
+    string nodeid = 1; 
+    string name = 2; 
+    string description = 3; 
+    optional string last_active = 4; 
+    string coords = 5; 
+    string location = 6; 
+    string provider = 7; 
+    optional string jobs = 8; 
+    bool scavenger_mode_active = 9;
+    string public_ip = 10;
+}
+
+message message_register_node {
+    _node node = 1; 
+}
+
+message message_register_node_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message message_update_node {
+    string nodeid = 1; 
+    
+    optional string name = 2; 
+    optional string description = 3; 
+    optional string last_active = 4; 
+    optional string coords = 5; 
+    optional string location = 6; 
+    optional string provider = 7; 
+    optional string public_ip = 8;
+}
+
+message message_update_node_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message message_get_nodes {
+    optional string nodeid = 1;
+    optional string location = 2; 
+    optional string name = 3; 
+    optional string provider = 4; 
+    optional bool active = 5; 
+    optional int32 activeThres = 6;  
+}
+
+message message_get_nodes_response {
+    repeated _node nodes = 1; 
+}
+
+message message_delete_node {
+    string nodeid = 1; 
+    bool deleteJobs = 2;
+}
+
+message message_delete_node_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message message_get_scavenger_status {
+    string nodeid = 1; 
+}
+
+message message_get_scavenger_status_response {
+    bool found = 1;
+    bool scavenger_mode_active = 2; 
+}
+
+message message_set_scavenger_status {
+    string nodeid = 1; 
+    bool scavenger_mode_active = 2;
+}
+
+message message_set_scavenger_status_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+/* task management */
+
+enum task_type {
+    TYPE_UNUSED = 0; 
+    SERVER_START = 1; 
+    SERVER_STOP = 2; 
+}
+
+enum task_status {
+    STATUS_UNUSED = 0; 
+    TASK_SCHEDULED = 1; 
+    TASK_COMPLETE = 2; 
+}
+
+message _task {
+    task_type type = 1; 
+    string taskid = 2; 
+    string runid = 3; 
+    string jobid = 4; 
+    string nodeid = 5; 
+    task_status status = 6; 
+    int32 ttl_secs = 7; 
+}
+
+message message_schedule_task {
+    _task task = 1; 
+}
+
+message message_schedule_task_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message message_get_tasks {
+    optional task_type type = 1; 
+    optional string taskid = 2; 
+    optional string runid = 3; 
+    optional string jobid = 4; 
+    optional string nodeid = 5; 
+    optional task_status status = 6; 
+}
+
+message message_get_tasks_response {
+    repeated _task tasks = 1;  
+}
+
+message message_update_task { 
+    string taskid = 1;
+    task_status status = 2;   
+}
+
+message message_update_task_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message message_kernel_access {
+    string userid = 1;
+}
+
+message message_kernel_access_response {
+    response_state state = 1;
+    string message = 2; 
+}
+
+message run_event {
+    string title = 1;
+    int32 id = 2; 
+    string start = 3;
+    string end = 4;
+    string type = 5; 
+    job_params params = 6; 
+    string schedule = 7; 
+    int32 length = 8; 
+    bool overhead = 9; 
+    string trigger = 10; 
+    string server = 11;
+} 
+
+message message_get_scheduled_runs {
+    string nodeid = 1; 
+    string start = 2; 
+    string end = 3; 
+}
+
+message message_get_scheduled_runs_response {
+    response_state state = 1;
+    string message = 2; 
+    repeated run_event events = 3;  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+

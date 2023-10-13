@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>job &mdash; LEOScope 00.00.01 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LEOScope
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">orchestrator</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LEOScope</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Module code</a></li>
+      <li class="breadcrumb-item active">job</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for job</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">json</span> 
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">uuid</span> <span class="kn">import</span> <span class="n">uuid4</span>
+<span class="kn">from</span> <span class="nn">croniter</span> <span class="kn">import</span> <span class="n">croniter_range</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span> 
+<span class="kn">from</span> <span class="nn">dateutil.parser</span> <span class="kn">import</span> <span class="n">parse</span> <span class="k">as</span> <span class="n">datetimeParse</span> 
+<span class="kn">from</span> <span class="nn">common.utils</span> <span class="kn">import</span> <span class="n">time_now</span>
+
+<span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<div class="viewcode-block" id="get_event_list_from_job_list"><a class="viewcode-back" href="../common/job.html#job.get_event_list_from_job_list">[docs]</a><span class="k">def</span> <span class="nf">get_event_list_from_job_list</span><span class="p">(</span><span class="n">jobs</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">limit_start</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+    <span class="n">limit_end</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="p">(</span><span class="n">limit_end</span> <span class="o">-</span> <span class="n">limit_start</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;error: end must be greater than start&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;error: end must be greater than start&#39;</span><span class="p">,</span> <span class="p">[]</span>
+    
+    <span class="c1"># if (limit_end - limit_start).total_seconds() &gt; 7*24*60*60:</span>
+    <span class="c1">#     print(&#39;error: time range must be less than 7 days&#39;)</span>
+    <span class="c1">#     return None </span>
+
+    <span class="n">runs</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">jobs</span><span class="p">:</span>
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span>
+        <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">])</span>
+
+        <span class="c1"># check overlap between date ranges </span>
+        <span class="n">latest_start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">limit_start</span><span class="p">)</span>
+        <span class="n">latest_end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">end_time</span><span class="p">,</span> <span class="n">limit_end</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">latest_start</span> <span class="o">&lt;</span> <span class="n">latest_end</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">dt</span> <span class="ow">in</span> <span class="n">croniter_range</span><span class="p">(</span><span class="n">latest_start</span><span class="p">,</span> <span class="n">latest_end</span><span class="p">,</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">]):</span>
+                    <span class="n">run</span> <span class="o">=</span> <span class="p">{</span>
+                        <span class="s1">&#39;title&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">],</span>
+                        <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">i</span><span class="p">,</span>
+                        <span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">dt</span><span class="p">),</span>
+                        <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">dt</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]))),</span>
+                        <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;cron&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;params&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                        <span class="s1">&#39;schedule&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">],</span>
+                        <span class="s1">&#39;length&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]),</span>
+                        <span class="s1">&#39;overhead&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                        <span class="s1">&#39;trigger&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">],</span>
+						<span class="s1">&#39;server&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">]</span>
+                    <span class="p">}</span>
+                    <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span>
+                    <span class="n">runs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">run</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+                <span class="n">run</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s1">&#39;title&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">i</span><span class="p">,</span>
+                    <span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">start_time</span><span class="p">),</span>
+                    <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">start_time</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]))),</span>
+                    <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="s1">&#39;atq&#39;</span><span class="p">,</span>
+                    <span class="s1">&#39;params&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;schedule&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;length&#39;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]),</span>
+                    <span class="s1">&#39;overhead&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                    <span class="s1">&#39;trigger&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">],</span>
+					<span class="s1">&#39;server&#39;</span><span class="p">:</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">]</span>
+                <span class="p">}</span>
+                <span class="n">i</span><span class="o">=</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span>
+                <span class="n">runs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">run</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;success&#39;</span><span class="p">,</span> <span class="n">runs</span></div>
+
+<span class="k">def</span> <span class="nf">check_schedule_conflict_range</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">sched</span><span class="p">):</span>
+    <span class="c1"># conflict = False </span>
+    <span class="c1"># conflict_range = {&#39;start&#39;: None, &#39;end&#39;: None}</span>
+
+    <span class="n">test_end</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">length</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+
+        <span class="c1"># check overlap between date ranges </span>
+        <span class="n">latest_start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]))</span>
+        <span class="n">latest_end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">end_time</span><span class="p">,</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="n">latest_start</span> <span class="o">&lt;</span> <span class="n">latest_end</span><span class="p">:</span>
+            <span class="c1"># test_start = None </span>
+            <span class="k">for</span> <span class="n">dt1</span> <span class="ow">in</span> <span class="n">croniter_range</span><span class="p">(</span><span class="n">latest_start</span><span class="p">,</span> <span class="n">latest_end</span><span class="p">,</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;cron&#39;</span><span class="p">]):</span>
+                <span class="c1"># test_start = dt1 - timedelta(seconds=sched[&#39;length&#39;])</span>
+                <span class="n">test_end</span> <span class="o">=</span> <span class="n">dt1</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">])</span>
+
+    <span class="k">elif</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+        <span class="n">sched_start</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span>
+        <span class="n">sched_end</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">])</span>
+
+        <span class="n">start_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">sched_start</span><span class="p">,</span> <span class="n">start_time</span><span class="p">)</span>
+        <span class="n">end_min</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">sched_end</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">start_max</span> <span class="o">&lt;</span> <span class="n">end_min</span><span class="p">:</span>
+            <span class="c1"># overlap </span>
+            <span class="n">test_end</span> <span class="o">=</span> <span class="n">end_min</span>
+    <span class="k">return</span> <span class="n">test_end</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">We want to look for an empty sched[&#39;length&#39;] slot till the end_date of the experiment. </span>
+<span class="sd">So we keep iterating over the list of already scheduled jobs to find that slot. </span>
+<span class="sd">&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="find_empty_slot_till_job_end"><a class="viewcode-back" href="../common/job.html#job.find_empty_slot_till_job_end">[docs]</a><span class="k">def</span> <span class="nf">find_empty_slot_till_job_end</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">sched_list</span><span class="p">):</span>
+    
+    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;finding next empty slot: start_time=</span><span class="si">%s</span><span class="s1"> end_time</span><span class="si">%s</span><span class="s1">, length=</span><span class="si">%s</span><span class="s1">, sched_list=</span><span class="si">%s</span><span class="s1">&#39;</span>
+             <span class="o">%</span> <span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">sched_list</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">sched</span> <span class="ow">in</span> <span class="n">sched_list</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">length</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">end_time</span><span class="p">:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">check_schedule_conflict_range</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">sched</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">end</span><span class="p">:</span>
+                <span class="n">start_time</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+                <span class="c1"># print(start_time)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+    
+    <span class="k">if</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">length</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">end_time</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">start_time</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span> </div>
+
+<div class="viewcode-block" id="check_schedule_conflict_atq"><a class="viewcode-back" href="../common/job.html#job.check_schedule_conflict_atq">[docs]</a><span class="k">def</span> <span class="nf">check_schedule_conflict_atq</span><span class="p">(</span><span class="n">sched1</span><span class="p">,</span> <span class="n">sched2</span><span class="p">):</span>
+    <span class="n">conflict</span> <span class="o">=</span> <span class="kc">False</span> 
+    <span class="n">conflict_range</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+
+    <span class="n">start1</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span>
+    <span class="c1"># end1 = datetimeParse(sched1[&#39;end&#39;])</span>
+    <span class="n">end1</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]))</span>
+
+    <span class="n">start2</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched2</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span>
+    <span class="c1"># end2 = datetimeParse(sched2[&#39;end&#39;])</span>
+    <span class="n">end2</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched2</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">sched2</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]))</span>
+
+    <span class="n">start_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">start1</span><span class="p">,</span> <span class="n">start2</span><span class="p">)</span>
+    <span class="n">end_min</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">end1</span><span class="p">,</span> <span class="n">end2</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">start_max</span> <span class="o">&lt;=</span> <span class="n">end_min</span><span class="p">:</span>
+        <span class="n">conflict</span> <span class="o">=</span> <span class="kc">True</span> 
+        <span class="n">conflict_range</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">start_max</span> 
+        <span class="n">conflict_range</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">end_min</span>
+    
+    <span class="k">return</span> <span class="n">conflict</span><span class="p">,</span> <span class="n">conflict_range</span></div>
+
+<div class="viewcode-block" id="check_schedule_conflict_cron_atq"><a class="viewcode-back" href="../common/job.html#job.check_schedule_conflict_cron_atq">[docs]</a><span class="k">def</span> <span class="nf">check_schedule_conflict_cron_atq</span><span class="p">(</span><span class="n">sched_atq</span><span class="p">,</span> <span class="n">sched_cron</span><span class="p">):</span>
+    <span class="n">conflict</span> <span class="o">=</span> <span class="kc">False</span> 
+    <span class="n">conflict_range</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+
+    <span class="c1"># check overlap between date ranges </span>
+    <span class="n">latest_start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched_cron</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]),</span> 
+                                        <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched_atq</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]))</span>
+    <span class="n">latest_end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched_cron</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]),</span> 
+                     <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched_atq</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span> 
+                     <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched_atq</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="n">latest_start</span> <span class="o">&lt;</span> <span class="n">latest_end</span><span class="p">:</span>
+        <span class="n">test_start</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched_atq</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span>
+        <span class="n">test_end</span> <span class="o">=</span> <span class="n">test_start</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched_atq</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">])</span>
+
+        <span class="k">for</span> <span class="n">dt2</span> <span class="ow">in</span> <span class="n">croniter_range</span><span class="p">(</span><span class="n">test_start</span><span class="p">,</span> <span class="n">test_end</span><span class="p">,</span> <span class="n">sched_cron</span><span class="p">[</span><span class="s1">&#39;cron&#39;</span><span class="p">]):</span>
+            <span class="n">check1</span> <span class="o">=</span> <span class="n">dt2</span> <span class="o">==</span> <span class="n">test_end</span>
+            <span class="n">check2</span> <span class="o">=</span> <span class="n">dt2</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched_cron</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="n">test_start</span>
+            <span class="n">check</span> <span class="o">=</span> <span class="ow">not</span><span class="p">(</span><span class="n">check1</span> <span class="ow">or</span> <span class="n">check2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">check</span><span class="p">:</span>
+                <span class="n">conflict</span> <span class="o">=</span> <span class="kc">True</span> 
+                <span class="n">conflict_range</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">test_start</span>
+                <span class="n">conflict_range</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">test_end</span>
+                <span class="k">break</span>
+    
+    <span class="k">return</span> <span class="n">conflict</span><span class="p">,</span> <span class="n">conflict_range</span></div>
+
+<div class="viewcode-block" id="check_schedule_conflict_cron"><a class="viewcode-back" href="../common/job.html#job.check_schedule_conflict_cron">[docs]</a><span class="k">def</span> <span class="nf">check_schedule_conflict_cron</span><span class="p">(</span><span class="n">sched1</span><span class="p">,</span> <span class="n">sched2</span><span class="p">):</span>
+    <span class="n">conflict</span> <span class="o">=</span> <span class="kc">False</span> 
+    <span class="n">conflict_range</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;start&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;end&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+
+    <span class="c1"># check overlap between date ranges </span>
+    <span class="n">latest_start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]),</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched2</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]))</span>
+    <span class="n">latest_end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]),</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched2</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="n">latest_start</span> <span class="o">&lt;</span> <span class="n">latest_end</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">dt1</span> <span class="ow">in</span> <span class="n">croniter_range</span><span class="p">(</span><span class="n">latest_start</span><span class="p">,</span> <span class="n">latest_end</span><span class="p">,</span> <span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;cron&#39;</span><span class="p">]):</span>
+            <span class="n">test_start</span> <span class="o">=</span> <span class="n">dt1</span> <span class="o">-</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">])</span>
+            <span class="n">test_end</span> <span class="o">=</span> <span class="n">dt1</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched1</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">])</span>
+
+            <span class="k">for</span> <span class="n">dt2</span> <span class="ow">in</span> <span class="n">croniter_range</span><span class="p">(</span><span class="n">test_start</span><span class="p">,</span> <span class="n">test_end</span><span class="p">,</span> <span class="n">sched2</span><span class="p">[</span><span class="s1">&#39;cron&#39;</span><span class="p">]):</span>
+                <span class="n">check1</span> <span class="o">=</span> <span class="n">dt2</span> <span class="o">==</span> <span class="n">test_end</span>
+                <span class="n">check2</span> <span class="o">=</span> <span class="n">dt2</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched2</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="n">dt1</span>
+                <span class="n">check</span> <span class="o">=</span> <span class="ow">not</span><span class="p">(</span><span class="n">check1</span> <span class="ow">or</span> <span class="n">check2</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">check</span><span class="p">:</span>
+                    <span class="n">conflict</span> <span class="o">=</span> <span class="kc">True</span> 
+                    <span class="n">conflict_range</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">test_start</span>
+                    <span class="n">conflict_range</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">test_end</span>
+                    <span class="k">break</span>
+
+            <span class="k">if</span> <span class="n">conflict</span><span class="p">:</span>
+                <span class="k">break</span> 
+    
+    <span class="k">return</span> <span class="n">conflict</span><span class="p">,</span> <span class="n">conflict_range</span></div>
+
+<div class="viewcode-block" id="check_schedule_conflict_list"><a class="viewcode-back" href="../common/job.html#job.check_schedule_conflict_list">[docs]</a><span class="k">def</span> <span class="nf">check_schedule_conflict_list</span><span class="p">(</span><span class="n">sched</span><span class="p">,</span> <span class="n">sched_list</span><span class="p">):</span>
+
+    <span class="n">conflicts</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">esched</span> <span class="ow">in</span> <span class="n">sched_list</span><span class="p">:</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">sched</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">esched</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span> <span class="ow">and</span> <span class="n">esched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+            <span class="n">conflict</span><span class="p">,</span> <span class="n">conflict_range</span> <span class="o">=</span> <span class="n">check_schedule_conflict_cron</span><span class="p">(</span><span class="n">sched</span><span class="p">,</span> <span class="n">esched</span><span class="p">)</span>
+        
+        <span class="k">elif</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span> <span class="ow">and</span> <span class="n">esched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+            <span class="n">conflict</span><span class="p">,</span> <span class="n">conflict_range</span> <span class="o">=</span> <span class="n">check_schedule_conflict_atq</span><span class="p">(</span><span class="n">sched</span><span class="p">,</span> <span class="n">esched</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+                <span class="n">conflict</span><span class="p">,</span> <span class="n">conflict_range</span> <span class="o">=</span> <span class="n">check_schedule_conflict_cron_atq</span><span class="p">(</span><span class="n">sched</span><span class="p">,</span> <span class="n">esched</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">conflict</span><span class="p">,</span> <span class="n">conflict_range</span> <span class="o">=</span> <span class="n">check_schedule_conflict_cron_atq</span><span class="p">(</span><span class="n">esched</span><span class="p">,</span> <span class="n">sched</span><span class="p">)</span>
+
+
+        <span class="k">if</span> <span class="n">conflict</span><span class="p">:</span>
+            <span class="n">conflicts</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s1">&#39;sched&#39;</span><span class="p">:</span> <span class="n">esched</span><span class="p">,</span> <span class="s1">&#39;range&#39;</span><span class="p">:</span> <span class="n">conflict_range</span><span class="p">})</span>
+
+    <span class="k">return</span> <span class="n">conflicts</span></div>
+
+<div class="viewcode-block" id="check_schedule_conflict_range"><a class="viewcode-back" href="../common/job.html#job.check_schedule_conflict_range">[docs]</a><span class="k">def</span> <span class="nf">check_schedule_conflict_range</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">sched</span><span class="p">):</span>
+    <span class="c1"># conflict = False </span>
+    <span class="c1"># conflict_range = {&#39;start&#39;: None, &#39;end&#39;: None}</span>
+
+    <span class="n">test_end</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">start_time</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">length</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+
+        <span class="c1"># check overlap between date ranges </span>
+        <span class="n">latest_start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">]))</span>
+        <span class="n">latest_end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">end_time</span><span class="p">,</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="n">latest_start</span> <span class="o">&lt;</span> <span class="n">latest_end</span><span class="p">:</span>
+            <span class="c1"># test_start = None </span>
+            <span class="k">for</span> <span class="n">dt1</span> <span class="ow">in</span> <span class="n">croniter_range</span><span class="p">(</span><span class="n">latest_start</span><span class="p">,</span> <span class="n">latest_end</span><span class="p">,</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;cron&#39;</span><span class="p">]):</span>
+                <span class="c1"># test_start = dt1 - timedelta(seconds=sched[&#39;length&#39;])</span>
+                <span class="n">test_end</span> <span class="o">=</span> <span class="n">dt1</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">])</span>
+
+    <span class="k">elif</span> <span class="n">sched</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+        <span class="n">sched_start</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;start&#39;</span><span class="p">])</span>
+        <span class="n">sched_end</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">sched</span><span class="p">[</span><span class="s1">&#39;end&#39;</span><span class="p">])</span>
+
+        <span class="n">start_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">sched_start</span><span class="p">,</span> <span class="n">start_time</span><span class="p">)</span>
+        <span class="n">end_min</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">sched_end</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">start_max</span> <span class="o">&lt;</span> <span class="n">end_min</span><span class="p">:</span>
+            <span class="c1"># overlap </span>
+            <span class="n">test_end</span> <span class="o">=</span> <span class="n">end_min</span>
+    <span class="k">return</span> <span class="n">test_end</span></div>
+
+<div class="viewcode-block" id="LeotestJob"><a class="viewcode-back" href="../common/job.html#job.LeotestJob">[docs]</a><span class="k">class</span> <span class="nc">LeotestJob</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                <span class="n">jobid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> 
+                <span class="n">nodeid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> 
+                <span class="n">userid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> 
+                <span class="n">start_date</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> 
+                <span class="n">end_date</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">length_secs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                <span class="n">server</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">overhead</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">trigger</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">job_params</span><span class="o">=</span><span class="p">{},</span>
+                <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">jobid</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span> <span class="o">=</span> <span class="n">jobid</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span> <span class="o">=</span> <span class="s2">&quot;leotest_job_</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">uuid4</span><span class="p">())</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span> <span class="o">=</span> <span class="n">nodeid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">userid</span> <span class="o">=</span> <span class="n">userid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="nb">type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">job_params</span> <span class="o">=</span> <span class="n">job_params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_date</span> <span class="o">=</span> <span class="n">start_date</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">end_date</span> <span class="o">=</span> <span class="n">end_date</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">length_secs</span> <span class="o">=</span> <span class="n">length_secs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">overhead</span> <span class="o">=</span> <span class="n">overhead</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">server</span> <span class="o">=</span> <span class="n">server</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trigger</span> <span class="o">=</span> <span class="n">trigger</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span> 
+    
+<div class="viewcode-block" id="LeotestJob.get_jobid"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_jobid">[docs]</a>    <span class="k">def</span> <span class="nf">get_jobid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span></div>
+    
+<div class="viewcode-block" id="LeotestJob.get_nodeid"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_nodeid">[docs]</a>    <span class="k">def</span> <span class="nf">get_nodeid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span></div>
+
+<div class="viewcode-block" id="LeotestJob.get_userid"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_userid">[docs]</a>    <span class="k">def</span> <span class="nf">get_userid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">userid</span></div>
+    
+<div class="viewcode-block" id="LeotestJob.get_type"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_type">[docs]</a>    <span class="k">def</span> <span class="nf">get_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">type</span></div>
+
+<div class="viewcode-block" id="LeotestJob.get_job_params"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_job_params">[docs]</a>    <span class="k">def</span> <span class="nf">get_job_params</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_params</span></div>
+    
+<div class="viewcode-block" id="LeotestJob.get_length_secs"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_length_secs">[docs]</a>    <span class="k">def</span> <span class="nf">get_length_secs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">length_secs</span></div>
+    
+<div class="viewcode-block" id="LeotestJob.get_trigger"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_trigger">[docs]</a>    <span class="k">def</span> <span class="nf">get_trigger</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trigger</span></div>
+
+<div class="viewcode-block" id="LeotestJob.get_config"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_config">[docs]</a>    <span class="k">def</span> <span class="nf">get_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span></div>
+    
+<div class="viewcode-block" id="LeotestJob.get_start_date_obj"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_start_date_obj">[docs]</a>    <span class="k">def</span> <span class="nf">get_start_date_obj</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_date</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestJob.get_end_date_obj"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.get_end_date_obj">[docs]</a>    <span class="k">def</span> <span class="nf">get_end_date_obj</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_date</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="LeotestJob.document"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.document">[docs]</a>    <span class="k">def</span> <span class="nf">document</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return dictionary representing a LeotestJob&quot;&quot;&quot;</span></div>
+
+<div class="viewcode-block" id="LeotestJob.serialize"><a class="viewcode-back" href="../common/job.html#job.LeotestJob.serialize">[docs]</a>    <span class="k">def</span> <span class="nf">serialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">document</span><span class="p">())</span></div></div>
+
+<div class="viewcode-block" id="LeotestJobCron"><a class="viewcode-back" href="../common/job.html#job.LeotestJobCron">[docs]</a><span class="k">class</span> <span class="nc">LeotestJobCron</span><span class="p">(</span><span class="n">LeotestJob</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">jobid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">nodeid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">userid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">job_params</span><span class="o">=</span><span class="p">{},</span>  
+                <span class="n">minute</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span>
+                <span class="n">hour</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span>
+                <span class="n">day_of_month</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span>
+                <span class="n">month</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span>
+                <span class="n">day_of_week</span><span class="o">=</span><span class="s2">&quot;*&quot;</span><span class="p">,</span>
+                <span class="n">start_date</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> 
+                <span class="n">end_date</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">length_secs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">server</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">trigger</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">overhead</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">jobid</span><span class="o">=</span><span class="n">jobid</span><span class="p">,</span> 
+                        <span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span>
+                        <span class="n">userid</span><span class="o">=</span><span class="n">userid</span><span class="p">,</span>
+                        <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;cron&quot;</span><span class="p">,</span> 
+                        <span class="n">job_params</span><span class="o">=</span><span class="n">job_params</span><span class="p">,</span>
+                        <span class="n">start_date</span><span class="o">=</span><span class="n">start_date</span><span class="p">,</span>
+                        <span class="n">end_date</span><span class="o">=</span><span class="n">end_date</span><span class="p">,</span>
+                        <span class="n">length_secs</span><span class="o">=</span><span class="n">length_secs</span><span class="p">,</span>
+                        <span class="n">server</span><span class="o">=</span><span class="n">server</span><span class="p">,</span>
+                        <span class="n">trigger</span><span class="o">=</span><span class="n">trigger</span><span class="p">,</span>
+                        <span class="n">overhead</span><span class="o">=</span><span class="n">overhead</span><span class="p">,</span>
+                        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;minute&#39;</span><span class="p">:</span> <span class="n">minute</span><span class="p">,</span>
+            <span class="s1">&#39;hour&#39;</span><span class="p">:</span> <span class="n">hour</span><span class="p">,</span>
+            <span class="s1">&#39;day_of_month&#39;</span><span class="p">:</span> <span class="n">day_of_month</span><span class="p">,</span> 
+            <span class="s1">&#39;month&#39;</span><span class="p">:</span> <span class="n">month</span><span class="p">,</span>
+            <span class="s1">&#39;day_of_week&#39;</span><span class="p">:</span> <span class="n">day_of_week</span> 
+        <span class="p">}</span>
+
+<div class="viewcode-block" id="LeotestJobCron.set_schedule_cron"><a class="viewcode-back" href="../common/job.html#job.LeotestJobCron.set_schedule_cron">[docs]</a>    <span class="k">def</span> <span class="nf">set_schedule_cron</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cron</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;set cron schedule using a cron string&quot;&quot;&quot;</span>
+
+        <span class="c1"># TODO: put checks to verify if the cron string is valid</span>
+        <span class="n">minute</span><span class="p">,</span> <span class="n">hour</span><span class="p">,</span> <span class="n">day_of_month</span><span class="p">,</span> <span class="n">month</span><span class="p">,</span> <span class="n">day_of_week</span> <span class="o">=</span> <span class="n">cron</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;minute&#39;</span><span class="p">:</span> <span class="n">minute</span><span class="p">,</span>
+            <span class="s1">&#39;hour&#39;</span><span class="p">:</span> <span class="n">hour</span><span class="p">,</span>
+            <span class="s1">&#39;day_of_month&#39;</span><span class="p">:</span> <span class="n">day_of_month</span><span class="p">,</span> 
+            <span class="s1">&#39;month&#39;</span><span class="p">:</span> <span class="n">month</span><span class="p">,</span>
+            <span class="s1">&#39;day_of_week&#39;</span><span class="p">:</span> <span class="n">day_of_week</span> 
+        <span class="p">}</span></div>
+
+<div class="viewcode-block" id="LeotestJobCron.get_cron_string"><a class="viewcode-back" href="../common/job.html#job.LeotestJobCron.get_cron_string">[docs]</a>    <span class="k">def</span> <span class="nf">get_cron_string</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="s1">&#39;minute&#39;</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="s1">&#39;hour&#39;</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="s1">&#39;day_of_month&#39;</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="s1">&#39;month&#39;</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">[</span><span class="s1">&#39;day_of_week&#39;</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="LeotestJobCron.document"><a class="viewcode-back" href="../common/job.html#job.LeotestJobCron.document">[docs]</a>    <span class="k">def</span> <span class="nf">document</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span><span class="p">,</span>
+            <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span><span class="p">,</span>
+            <span class="s1">&#39;userid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">userid</span><span class="p">,</span> 
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">type</span><span class="p">,</span>
+            <span class="s1">&#39;params&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_params</span><span class="p">,</span>
+            <span class="s1">&#39;schedule&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">,</span>
+            <span class="s1">&#39;start_date&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_date</span><span class="p">,</span>
+            <span class="s1">&#39;end_date&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_date</span><span class="p">,</span> 
+            <span class="s1">&#39;length_secs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">length_secs</span><span class="p">,</span>
+            <span class="s1">&#39;overhead&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">overhead</span><span class="p">,</span>
+            <span class="s1">&#39;server&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="p">,</span>
+            <span class="s1">&#39;trigger&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">trigger</span><span class="p">,</span>
+            <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
+            <span class="s1">&#39;expire_at&#39;</span><span class="p">:</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_date</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">job</span></div></div>
+
+<div class="viewcode-block" id="LeotestJobAtq"><a class="viewcode-back" href="../common/job.html#job.LeotestJobAtq">[docs]</a><span class="k">class</span> <span class="nc">LeotestJobAtq</span><span class="p">(</span><span class="n">LeotestJob</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                <span class="n">jobid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">nodeid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">userid</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">job_params</span><span class="o">=</span><span class="p">{},</span>  
+                <span class="n">start_date</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> 
+                <span class="n">end_date</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="n">length_secs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">server</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">trigger</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">overhead</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">jobid</span><span class="o">=</span><span class="n">jobid</span><span class="p">,</span> 
+                        <span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span>
+                        <span class="n">userid</span><span class="o">=</span><span class="n">userid</span><span class="p">,</span>
+                        <span class="nb">type</span><span class="o">=</span><span class="s2">&quot;atq&quot;</span><span class="p">,</span> 
+                        <span class="n">job_params</span><span class="o">=</span><span class="n">job_params</span><span class="p">,</span>
+                        <span class="n">start_date</span><span class="o">=</span><span class="n">start_date</span><span class="p">,</span>
+                        <span class="n">end_date</span><span class="o">=</span><span class="n">end_date</span><span class="p">,</span>
+                        <span class="n">length_secs</span><span class="o">=</span><span class="n">length_secs</span><span class="p">,</span>
+                        <span class="n">server</span><span class="o">=</span><span class="n">server</span><span class="p">,</span>
+                        <span class="n">trigger</span><span class="o">=</span><span class="n">trigger</span><span class="p">,</span>
+                        <span class="n">overhead</span><span class="o">=</span><span class="n">overhead</span><span class="p">,</span>
+                        <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+<div class="viewcode-block" id="LeotestJobAtq.get_start_time_obj"><a class="viewcode-back" href="../common/job.html#job.LeotestJobAtq.get_start_time_obj">[docs]</a>    <span class="k">def</span> <span class="nf">get_start_time_obj</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;parsing </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_date</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_date</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestJobAtq.document"><a class="viewcode-back" href="../common/job.html#job.LeotestJobAtq.document">[docs]</a>    <span class="k">def</span> <span class="nf">document</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">job</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span><span class="p">,</span>
+            <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span><span class="p">,</span> 
+            <span class="s1">&#39;userid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">userid</span><span class="p">,</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">type</span><span class="p">,</span>
+            <span class="s1">&#39;params&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">job_params</span><span class="p">,</span>
+            <span class="s1">&#39;schedule&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">schedule</span><span class="p">,</span>
+            <span class="s1">&#39;start_date&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">start_date</span><span class="p">,</span>
+            <span class="s1">&#39;end_date&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_date</span><span class="p">,</span> 
+            <span class="s1">&#39;length_secs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">length_secs</span><span class="p">,</span>
+            <span class="s1">&#39;overhead&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">overhead</span><span class="p">,</span>
+            <span class="s1">&#39;server&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="p">,</span>
+            <span class="s1">&#39;trigger&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">trigger</span><span class="p">,</span>
+            <span class="s1">&#39;config&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">,</span>
+            <span class="s1">&#39;expire_at&#39;</span><span class="p">:</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_date</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">job</span></div></div>
+
+<div class="viewcode-block" id="LeotestRun"><a class="viewcode-back" href="../common/job.html#job.LeotestRun">[docs]</a><span class="k">class</span> <span class="nc">LeotestRun</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">runid</span><span class="p">,</span> <span class="n">jobid</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> <span class="n">userid</span><span class="p">,</span>
+                        <span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">last_updated</span><span class="p">,</span> <span class="n">blob_url</span><span class="p">,</span> 
+                                <span class="n">status</span><span class="p">,</span> <span class="n">status_message</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">runid</span> <span class="o">=</span> <span class="n">runid</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span> <span class="o">=</span> <span class="n">jobid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span> <span class="o">=</span> <span class="n">nodeid</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">userid</span> <span class="o">=</span> <span class="n">userid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_time</span> <span class="o">=</span> <span class="n">start_time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">end_time</span> <span class="o">=</span> <span class="n">end_time</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_updated</span> <span class="o">=</span> <span class="n">last_updated</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blob_url</span> <span class="o">=</span> <span class="n">blob_url</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">status</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">status_message</span> <span class="o">=</span> <span class="n">status_message</span>
+        
+<div class="viewcode-block" id="LeotestRun.set_status"><a class="viewcode-back" href="../common/job.html#job.LeotestRun.set_status">[docs]</a>    <span class="k">def</span> <span class="nf">set_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">status_message</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">status</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status_message</span> <span class="o">=</span> <span class="n">status_message</span></div>
+    
+<div class="viewcode-block" id="LeotestRun.document"><a class="viewcode-back" href="../common/job.html#job.LeotestRun.document">[docs]</a>    <span class="k">def</span> <span class="nf">document</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">run</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;runid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">runid</span><span class="p">,</span>
+            <span class="s1">&#39;jobid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span><span class="p">,</span>
+            <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span><span class="p">,</span>
+            <span class="s1">&#39;userid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">userid</span><span class="p">,</span>
+            <span class="s1">&#39;start_time&#39;</span><span class="p">:</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_time</span><span class="p">),</span>
+            <span class="s1">&#39;end_time&#39;</span><span class="p">:</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_time</span><span class="p">),</span>
+            <span class="s1">&#39;last_updated&#39;</span><span class="p">:</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">last_updated</span><span class="p">),</span>
+            <span class="s1">&#39;blob_url&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">blob_url</span><span class="p">,</span>
+            <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+            <span class="s1">&#39;status_message&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">status_message</span>
+        <span class="p">}</span> 
+        <span class="k">return</span> <span class="n">run</span> </div></div>
+
+<div class="viewcode-block" id="LeotestTask"><a class="viewcode-back" href="../common/job.html#job.LeotestTask">[docs]</a><span class="k">class</span> <span class="nc">LeotestTask</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">taskid</span><span class="p">,</span> <span class="n">runid</span><span class="p">,</span> <span class="n">jobid</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> <span class="n">task_type</span><span class="p">,</span> <span class="n">ttl_secs</span><span class="o">=</span><span class="mi">300</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">taskid</span> <span class="o">=</span> <span class="n">taskid</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">runid</span> <span class="o">=</span> <span class="n">runid</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span> <span class="o">=</span> <span class="n">jobid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span> <span class="o">=</span> <span class="n">nodeid</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">task_type</span> <span class="o">=</span> <span class="n">task_type</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expire_at</span> <span class="o">=</span> <span class="n">time_now</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">ttl_secs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ttl_secs</span> <span class="o">=</span> <span class="n">ttl_secs</span>
+        
+<div class="viewcode-block" id="LeotestTask.set_status"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.set_status">[docs]</a>    <span class="k">def</span> <span class="nf">set_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">status</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">status</span></div>
+    
+<div class="viewcode-block" id="LeotestTask.get_status"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.get_status">[docs]</a>    <span class="k">def</span> <span class="nf">get_status</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> </div>
+
+<div class="viewcode-block" id="LeotestTask.get_taskid"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.get_taskid">[docs]</a>    <span class="k">def</span> <span class="nf">get_taskid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">taskid</span> </div>
+    
+<div class="viewcode-block" id="LeotestTask.get_runid"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.get_runid">[docs]</a>    <span class="k">def</span> <span class="nf">get_runid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">runid</span></div>
+    
+<div class="viewcode-block" id="LeotestTask.get_jobid"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.get_jobid">[docs]</a>    <span class="k">def</span> <span class="nf">get_jobid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span> </div>
+    
+<div class="viewcode-block" id="LeotestTask.get_nodeid"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.get_nodeid">[docs]</a>    <span class="k">def</span> <span class="nf">get_nodeid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span> </div>
+    
+<div class="viewcode-block" id="LeotestTask.get_ttl_secs"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.get_ttl_secs">[docs]</a>    <span class="k">def</span> <span class="nf">get_ttl_secs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ttl_secs</span></div>
+    
+<div class="viewcode-block" id="LeotestTask.document"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.document">[docs]</a>    <span class="k">def</span> <span class="nf">document</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">run</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;taskid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">taskid</span><span class="p">,</span>
+            <span class="s1">&#39;runid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">runid</span><span class="p">,</span>
+            <span class="s1">&#39;jobid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span><span class="p">,</span>
+            <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span><span class="p">,</span>
+            <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+            <span class="s1">&#39;task_type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">task_type</span><span class="p">,</span>
+            <span class="s1">&#39;ttl_secs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ttl_secs</span><span class="p">,</span>
+            <span class="s1">&#39;expire_at&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">expire_at</span>
+        <span class="p">}</span> 
+        <span class="k">return</span> <span class="n">run</span> </div>
+    
+<div class="viewcode-block" id="LeotestTask.document_proto_compatible"><a class="viewcode-back" href="../common/job.html#job.LeotestTask.document_proto_compatible">[docs]</a>    <span class="k">def</span> <span class="nf">document_proto_compatible</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">run</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;taskid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">taskid</span><span class="p">,</span>
+            <span class="s1">&#39;runid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">runid</span><span class="p">,</span>
+            <span class="s1">&#39;jobid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid</span><span class="p">,</span>
+            <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span><span class="p">,</span>
+            <span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span><span class="p">,</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">task_type</span><span class="p">,</span>
+            <span class="s1">&#39;ttl_secs&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">ttl_secs</span>
+        <span class="p">}</span> 
+        <span class="k">return</span> <span class="n">run</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Shubham Tiwari, Aryan Taneja, Saksham Bhushan, M. Kassem, Nishanth Sastry, Aravindh Raman, Debopam Bhattacherjee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

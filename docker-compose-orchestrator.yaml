@@ -1,0 +1,49 @@
+version: "3.7"
+services:
+  orchestrator:
+    build:
+      context: . 
+      dockerfile: "docker/orchestrator/Dockerfile"
+    image: "leotest-orchestrator"
+    command: 
+      - "--grpc-hostname=0.0.0.0"
+      - "--grpc-port=50051"
+      - "--grpc-workers=10"
+      - "--db-server=datastore"
+      - "--db-port=27017"
+      - "--db-name=leotest"
+      - "--admin-access-token=<Access-Token>"
+      - "--jwt-secret=<jwt-secret>"
+      - "--jwt-algo=HS256"
+    ports:
+      - "50051:50051"
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "1"
+        max-size: "2048m"
+
+  datastore:
+    hostname: "datastore"
+    image: "mongo:latest"
+    # Note: enabling the following lines enables mongo auth
+    # environment:
+    #     MONGO_INITDB_ROOT_USERNAME: root
+    #     MONGO_INITDB_ROOT_PASSWORD: root
+    ports:
+      - 27017:27017
+    volumes:
+      - /home/leotest/leoscope/mongodb:/data/db
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "1"
+        max-size: "2048m"
+
+volumes:
+  mongodb_data_container: 
+
+# networks:
+  # ...

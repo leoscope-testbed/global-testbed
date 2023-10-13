@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>client module &mdash; LEOScope 00.00.01 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="job module" href="job.html" />
+    <link rel="prev" title="azure module" href="azure.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LEOScope
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../modules.html">Orchestrator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html#node">Node</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../modules.html#common">Common</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="modules.html">common</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="azure.html">azure module</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">client module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="job.html">job module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="leotest_pb2.html">leotest_pb2 module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="leotest_pb2_grpc.html">leotest_pb2_grpc module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="node.html">node module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="sly.html">sly package</a></li>
+<li class="toctree-l3"><a class="reference internal" href="trigger.html">trigger module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="user.html">user module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="utils.html">utils module</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html#cli">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../modules.html#services">Services</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LEOScope</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../modules.html">Orchestrator</a></li>
+          <li class="breadcrumb-item"><a href="modules.html">common</a></li>
+      <li class="breadcrumb-item active">client module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/common/client.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-client">
+<span id="client-module"></span><h1>client module<a class="headerlink" href="#module-client" title="Permalink to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="client.LeotestClient">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">client.</span></span><span class="sig-name descname"><span class="pre">LeotestClient</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grpc_hostname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grpc_port</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50051</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">userid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'admin'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">access_token</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jwt_access_token</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn_retry_num</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn_retry_wait</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.delete_job_by_id">
+<span class="sig-name descname"><span class="pre">delete_job_by_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.delete_job_by_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.delete_job_by_id" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to delete job details for the given Job ID.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.delete_jobs_by_nodeid">
+<span class="sig-name descname"><span class="pre">delete_jobs_by_nodeid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.delete_jobs_by_nodeid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.delete_jobs_by_nodeid" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to delete job details for the jobs with the given node ID.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.delete_node">
+<span class="sig-name descname"><span class="pre">delete_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delete_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.delete_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.delete_node" title="Permalink to this definition"></a></dt>
+<dd><p>delete a node with a given nodeid</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.delete_user">
+<span class="sig-name descname"><span class="pre">delete_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.delete_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.delete_user" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to delete user with the given user id.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.download_runs">
+<span class="sig-name descname"><span class="pre">download_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">local_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">global_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'global_config.json'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.download_runs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.download_runs" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_config">
+<span class="sig-name descname"><span class="pre">get_config</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_config" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to get the latest the global configuration.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_job_by_id">
+<span class="sig-name descname"><span class="pre">get_job_by_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_job_by_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_job_by_id" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to get job details for the given Job ID.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_jobs_by_nodeid">
+<span class="sig-name descname"><span class="pre">get_jobs_by_nodeid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_jobs_by_nodeid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_jobs_by_nodeid" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to get job details deployed on the node with the given node ID.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_jobs_by_userid">
+<span class="sig-name descname"><span class="pre">get_jobs_by_userid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">userid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_jobs_by_userid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_jobs_by_userid" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to get job details deployed by a user with the given user ID.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_nodes">
+<span class="sig-name descname"><span class="pre">get_nodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activeThres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_nodes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_nodes" title="Permalink to this definition"></a></dt>
+<dd><p>get nodes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_runs">
+<span class="sig-name descname"><span class="pre">get_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">runid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_runs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_runs" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_scavenger_status">
+<span class="sig-name descname"><span class="pre">get_scavenger_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_scavenger_status"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_scavenger_status" title="Permalink to this definition"></a></dt>
+<dd><p>get scavenger mode status</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_scheduled_runs">
+<span class="sig-name descname"><span class="pre">get_scheduled_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_scheduled_runs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_scheduled_runs" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_tasks">
+<span class="sig-name descname"><span class="pre">get_tasks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">taskid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_tasks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_tasks" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.get_user">
+<span class="sig-name descname"><span class="pre">get_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.get_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.get_user" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to get user details with the given user id.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.init_grpc_client">
+<span class="sig-name descname"><span class="pre">init_grpc_client</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.init_grpc_client"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.init_grpc_client" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.kernel_access">
+<span class="sig-name descname"><span class="pre">kernel_access</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">userid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.kernel_access"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.kernel_access" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.modify_user">
+<span class="sig-name descname"><span class="pre">modify_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">team</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.modify_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.modify_user" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to modify user details with the given user id.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.register_node">
+<span class="sig-name descname"><span class="pre">register_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">description</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coords</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'starlink'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.register_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.register_node" title="Permalink to this definition"></a></dt>
+<dd><p>register node</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.register_user">
+<span class="sig-name descname"><span class="pre">register_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">id</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">team</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.register_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.register_user" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to register a user with 4 parameters i.e. id, name, role and team.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.reschedule_job_nearest">
+<span class="sig-name descname"><span class="pre">reschedule_job_nearest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">starttime</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">endtime</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.reschedule_job_nearest"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.reschedule_job_nearest" title="Permalink to this definition"></a></dt>
+<dd><p>request for job reschedule</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.schedule_job">
+<span class="sig-name descname"><span class="pre">schedule_job</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">type_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params_mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params_deploy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params_execute</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">params_finish</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">schedule</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_date</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_date</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overhead</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">server</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trigger</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">experiment_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.schedule_job"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.schedule_job" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to schedule a job at a node with the given nodeid, according to the given schedule and parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>jobid</strong> – Job ID of the job to be scheduled.</p></li>
+<li><p><strong>nodeid</strong> – Node ID of the node where the experiment is to be deployed.</p></li>
+<li><p><strong>type_name</strong> – </p></li>
+<li><p><strong>params_mode</strong> – </p></li>
+<li><p><strong>params_deploy</strong> – </p></li>
+<li><p><strong>params_execute</strong> – </p></li>
+<li><p><strong>params_finish</strong> – </p></li>
+<li><p><strong>schedule</strong> – </p></li>
+<li><p><strong>start_date</strong> – Start datetime of the experiment.</p></li>
+<li><p><strong>end_date</strong> – End datetime of the experiment</p></li>
+<li><p><strong>length</strong> – Duration of the experiment in seconds.</p></li>
+</ul>
+</dd>
+</dl>
+<p>:param overhead:Overhead vs no-overhead experiment.
+:param server: node id of the server used for experimentation, defaults to None
+:param trigger: Trigger expression for running experiment, defaults to None, optional
+:param experiment_config: Config file specific to the experiment deployed, defaults to “”, optional
+:return: gRPC response.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.schedule_task">
+<span class="sig-name descname"><span class="pre">schedule_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">taskid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ttl_secs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">300</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.schedule_task"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.schedule_task" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.send_heartbeat">
+<span class="sig-name descname"><span class="pre">send_heartbeat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.send_heartbeat"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.send_heartbeat" title="Permalink to this definition"></a></dt>
+<dd><p>Send heartbeat gRPC API sends regular messages to update it’s status.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.set_scavenger_status">
+<span class="sig-name descname"><span class="pre">set_scavenger_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scavenger_mode_active</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.set_scavenger_status"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.set_scavenger_status" title="Permalink to this definition"></a></dt>
+<dd><p>set scavenger mode</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.update_config">
+<span class="sig-name descname"><span class="pre">update_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config_json</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.update_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.update_config" title="Permalink to this definition"></a></dt>
+<dd><p>Send a request to update the global configuration.
+This method sends a request to update the global configuration.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.update_node">
+<span class="sig-name descname"><span class="pre">update_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">description</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_active</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">public_ip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.update_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.update_node" title="Permalink to this definition"></a></dt>
+<dd><p>update node</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.update_run">
+<span class="sig-name descname"><span class="pre">update_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">runid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">userid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_time</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">status</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">status_message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_updated</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_time</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blob_url</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.update_run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.update_run" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="client.LeotestClient.update_task">
+<span class="sig-name descname"><span class="pre">update_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">taskid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">status</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'TASK_COMPLETE'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/client.html#LeotestClient.update_task"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#client.LeotestClient.update_task" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="azure.html" class="btn btn-neutral float-left" title="azure module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="job.html" class="btn btn-neutral float-right" title="job module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Shubham Tiwari, Aryan Taneja, Saksham Bhushan, M. Kassem, Nishanth Sastry, Aravindh Raman, Debopam Bhattacherjee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

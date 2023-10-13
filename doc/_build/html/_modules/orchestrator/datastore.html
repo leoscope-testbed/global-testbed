@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>orchestrator.datastore &mdash; LEOScope 00.00.01 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            LEOScope
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Orchestrator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#node">Node</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#common">Common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#cli">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#services">Services</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">LEOScope</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">orchestrator.datastore</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for orchestrator.datastore</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">pymongo</span> <span class="kn">import</span> <span class="n">ASCENDING</span><span class="p">,</span> <span class="n">DESCENDING</span><span class="p">,</span> <span class="n">DeleteOne</span><span class="p">,</span> <span class="n">MongoClient</span><span class="p">,</span> <span class="n">UpdateOne</span>
+<span class="kn">from</span> <span class="nn">pymongo.collection</span> <span class="kn">import</span> <span class="n">Collection</span>
+<span class="kn">from</span> <span class="nn">pymongo.errors</span> <span class="kn">import</span> <span class="n">ConnectionFailure</span><span class="p">,</span> <span class="n">DuplicateKeyError</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span>
+<span class="kn">import</span> <span class="nn">logging</span> 
+
+<span class="kn">from</span> <span class="nn">dateutil.parser</span> <span class="kn">import</span> <span class="n">parse</span> <span class="k">as</span> <span class="n">datetimeParse</span>
+<span class="kn">import</span> <span class="nn">datetime</span> 
+<span class="kn">from</span> <span class="nn">common.job</span> <span class="kn">import</span> <span class="n">LeotestJob</span><span class="p">,</span> <span class="n">LeotestTask</span><span class="p">,</span> <span class="n">LeotestJobCron</span><span class="p">,</span> <span class="n">LeotestJobAtq</span><span class="p">,</span>\
+                                                        <span class="n">LeotestRun</span>
+<span class="kn">from</span> <span class="nn">common.user</span> <span class="kn">import</span> <span class="n">LeotestUser</span><span class="p">,</span> <span class="n">LeotestUserRoles</span>
+<span class="kn">from</span> <span class="nn">common.node</span> <span class="kn">import</span> <span class="n">LeotestNode</span>
+<span class="kn">from</span> <span class="nn">common.utils</span> <span class="kn">import</span> <span class="n">time_now</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+	<span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> 
+	<span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(filename)s</span><span class="s2">:</span><span class="si">%(lineno)s</span><span class="s2"> </span><span class="si">%(thread)d</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo">[docs]</a><span class="k">class</span> <span class="nc">LeotestDatastoreMongo</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">server</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">27017</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s1">&#39;leotest&#39;</span><span class="p">,</span> 
+                <span class="n">admin_access_token</span><span class="o">=</span><span class="s1">&#39;leotest-access-token&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">MongoClient</span><span class="p">(</span><span class="n">server</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">database</span> <span class="o">=</span> <span class="n">database</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">db</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_database</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">database</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s2">&quot;config&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_users</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s2">&quot;users&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s2">&quot;nodes&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s2">&quot;jobs&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_runs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s2">&quot;runs&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">db</span><span class="p">[</span><span class="s2">&quot;tasks&quot;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">create_index</span><span class="p">(</span><span class="s1">&#39;expire_at&#39;</span><span class="p">,</span> <span class="n">expireAfterSeconds</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_runs</span><span class="o">.</span><span class="n">create_index</span><span class="p">([(</span><span class="s1">&#39;jobid&#39;</span><span class="p">,</span> <span class="n">ASCENDING</span><span class="p">),</span>
+                                <span class="p">(</span><span class="s1">&#39;nodeid&#39;</span><span class="p">,</span> <span class="n">ASCENDING</span><span class="p">),</span>
+                                <span class="p">(</span><span class="s1">&#39;start_time&#39;</span><span class="p">,</span> <span class="n">DESCENDING</span><span class="p">)],</span>
+                                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;run_query_index&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">create_index</span><span class="p">([(</span><span class="s1">&#39;nodeid&#39;</span><span class="p">,</span> <span class="n">ASCENDING</span><span class="p">),</span>
+                                <span class="p">(</span><span class="s1">&#39;last_active&#39;</span><span class="p">,</span> <span class="n">DESCENDING</span><span class="p">)],</span>
+                                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;node_query_index&#39;</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">create_index</span><span class="p">(</span><span class="s1">&#39;expire_at&#39;</span><span class="p">,</span> <span class="n">expireAfterSeconds</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">admin_access_token</span> <span class="o">=</span> <span class="n">admin_access_token</span>
+
+        <span class="c1"># create an admin user </span>
+        <span class="n">admin</span> <span class="o">=</span> <span class="n">LeotestUser</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s1">&#39;admin&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;LEOScope Admin&#39;</span><span class="p">,</span> 
+                            <span class="n">role</span><span class="o">=</span><span class="n">LeotestUserRoles</span><span class="o">.</span><span class="n">ADMIN</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">team</span><span class="o">=</span><span class="s1">&#39;LeoScope MSR-India&#39;</span><span class="p">,</span>
+                            <span class="n">static_access_token</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin_access_token</span><span class="p">,</span> 
+                            <span class="n">access_token</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">admin_access_token</span><span class="p">)</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">admin</span><span class="o">.</span><span class="n">document</span><span class="p">())</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delete_user</span><span class="p">(</span><span class="n">admin</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">add_user</span><span class="p">(</span><span class="n">admin</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.update_config"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.update_config">[docs]</a>    <span class="k">def</span> <span class="nf">update_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">config</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+            <span class="c1"># self._config.insert_one(config, session=session)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="mi">0</span>
+            <span class="p">},</span> <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;config updated&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_config"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_config">[docs]</a>    <span class="k">def</span> <span class="nf">get_config</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_config</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span> 
+                                        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.add_user"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.add_user">[docs]</a>    <span class="k">def</span> <span class="nf">add_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="n">LeotestUser</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;register user on leotest&quot;&quot;&quot;</span>
+
+        <span class="n">document</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_users</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]},</span> 
+                                                    <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">exists</span><span class="p">:</span> 
+                <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;user with given id already exists&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_users</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="n">document</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+                <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;user registered&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_user"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_user">[docs]</a>    <span class="k">def</span> <span class="nf">get_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userid</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">LeotestUser</span><span class="p">:</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">user</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_users</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">userid</span><span class="p">},</span> 
+                                        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="n">user</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">LeotestUser</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="n">user</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span> 
+                                    <span class="n">name</span><span class="o">=</span><span class="n">user</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> 
+                                    <span class="n">role</span><span class="o">=</span><span class="n">user</span><span class="p">[</span><span class="s1">&#39;role&#39;</span><span class="p">],</span> 
+                                    <span class="n">team</span><span class="o">=</span><span class="n">user</span><span class="p">[</span><span class="s1">&#39;team&#39;</span><span class="p">],</span>
+                                    <span class="n">static_access_token</span><span class="o">=</span><span class="n">user</span><span class="p">[</span><span class="s1">&#39;static_access_token&#39;</span><span class="p">],</span>
+                                    <span class="n">access_token</span><span class="o">=</span><span class="n">user</span><span class="p">[</span><span class="s1">&#39;access_token&#39;</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.modify_user"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.modify_user">[docs]</a>    <span class="k">def</span> <span class="nf">modify_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="n">LeotestUser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;modify user on Leotest&quot;&quot;&quot;</span>
+
+        <span class="c1"># does the user exist?</span>
+        <span class="n">document</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="nb">id</span> <span class="o">=</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+        <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_user</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;user with given id does not exist&quot;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+
+            <span class="n">document</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_users</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="nb">id</span>
+            <span class="p">},</span> <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="n">document</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;user updated&quot;</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.delete_user"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.delete_user">[docs]</a>    <span class="k">def</span> <span class="nf">delete_user</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">:</span> <span class="n">LeotestUser</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;delete a user on Leotest&quot;&quot;&quot;</span>
+
+        <span class="n">document</span> <span class="o">=</span> <span class="n">user</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_user</span><span class="p">(</span><span class="n">user</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;user with given id does not exist&quot;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="nb">id</span> <span class="o">=</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_users</span><span class="o">.</span><span class="n">delete_one</span><span class="p">({</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="nb">id</span><span class="p">},</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>   
+
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;user deleted&quot;</span><span class="p">)</span></div>
+
+    <span class="c1"># TODO: &#39;nodeid&#39; is a foreign key, check for consistency</span>
+<div class="viewcode-block" id="LeotestDatastoreMongo.add_job"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.add_job">[docs]</a>    <span class="k">def</span> <span class="nf">add_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job</span><span class="p">:</span> <span class="n">LeotestJob</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;add a job&quot;&quot;&quot;</span>
+        
+        <span class="n">document</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]},</span> 
+                                                    <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">exists</span><span class="p">:</span> 
+                <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;job with the given id exists&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="n">document</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;job successfully scheduled&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.modify_job"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.modify_job">[docs]</a>    <span class="k">def</span> <span class="nf">modify_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job</span><span class="p">:</span> <span class="n">LeotestJob</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;modify job on Leotest&quot;&quot;&quot;</span>
+
+        <span class="n">document</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="nb">id</span> <span class="o">=</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">]</span>
+            <span class="n">document</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="nb">id</span>
+            <span class="p">},</span> <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="n">document</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_job_by_id"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_job_by_id">[docs]</a>    <span class="k">def</span> <span class="nf">get_job_by_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobid</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;get a specific job using jobid&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">job</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">jobid</span><span class="p">},</span> 
+                                        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            
+            <span class="k">if</span> <span class="n">job</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+                    <span class="n">ret</span> <span class="o">=</span> <span class="n">LeotestJobCron</span><span class="p">(</span>
+                                <span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+                                <span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+                                <span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+                                <span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                                <span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;start_date&#39;</span><span class="p">],</span>
+                                <span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;end_date&#39;</span><span class="p">],</span>
+                                <span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length_secs&#39;</span><span class="p">],</span>
+                                <span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                                <span class="n">server</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">],</span> 
+                                <span class="n">trigger</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">],</span>
+                                <span class="n">config</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="s1">&#39;config&#39;</span> <span class="ow">in</span> <span class="n">job</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                                <span class="o">**</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">])</span>
+
+                <span class="k">elif</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+                    <span class="n">ret</span> <span class="o">=</span> <span class="n">LeotestJobAtq</span><span class="p">(</span>
+                                <span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+                                <span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+                                <span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+                                <span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                                <span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;start_date&#39;</span><span class="p">],</span>
+                                <span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;end_date&#39;</span><span class="p">],</span>
+                                <span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length_secs&#39;</span><span class="p">],</span>
+                                <span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                                <span class="n">server</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">],</span>
+                                <span class="n">trigger</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">],</span> 
+                                <span class="n">config</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;config&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="s1">&#39;config&#39;</span> <span class="ow">in</span> <span class="n">job</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+                
+                <span class="k">return</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">ret</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_jobs_by_userid"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_jobs_by_userid">[docs]</a>    <span class="k">def</span> <span class="nf">get_jobs_by_userid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">userid</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;get a specific job using userid&quot;&quot;&quot;</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+
+            <span class="k">if</span> <span class="n">userid</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s2">&quot;userid&quot;</span><span class="p">:</span> <span class="n">userid</span><span class="p">},</span> 
+                                            <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">find</span><span class="p">({},</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="c1"># TODO: res is always exists, use len(res) instead?</span>
+            <span class="n">jobs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">res</span> <span class="ow">and</span> <span class="n">res</span><span class="o">.</span><span class="n">explain</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;executionStats&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nReturned&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+                        <span class="n">jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LeotestJobCron</span><span class="p">(</span>
+                                            <span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+                                            <span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+                                            <span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+                                            <span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                                            <span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;start_date&#39;</span><span class="p">],</span>
+                                            <span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;end_date&#39;</span><span class="p">],</span>
+                                            <span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length_secs&#39;</span><span class="p">],</span> 
+                                            <span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                                            <span class="n">server</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">],</span> 
+                                            <span class="n">trigger</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">],</span>
+                                            <span class="o">**</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">]))</span>
+                    
+                    <span class="k">elif</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+                        <span class="n">jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LeotestJobAtq</span><span class="p">(</span>
+                                            <span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+                                            <span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+                                            <span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+                                            <span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                                            <span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;start_date&#39;</span><span class="p">],</span>
+                                            <span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;end_date&#39;</span><span class="p">],</span>
+                                            <span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length_secs&#39;</span><span class="p">],</span> 
+                                            <span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                                            <span class="n">server</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">],</span> 
+                                            <span class="n">trigger</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">]))</span>
+                <span class="k">return</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">jobs</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_jobs_by_nodeid"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_jobs_by_nodeid">[docs]</a>    <span class="k">def</span> <span class="nf">get_jobs_by_nodeid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">LeotestJob</span><span class="p">]:</span>
+        <span class="sd">&quot;&quot;&quot;get list of jobs scheduled on a given node&quot;&quot;&quot;</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="c1"># res = self._jobs.find({&quot;nodeid&quot;: nodeid}, </span>
+            <span class="c1">#                             session=session)</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;$or&#39;</span><span class="p">:</span> <span class="p">[</span>
+                <span class="p">{</span><span class="s2">&quot;nodeid&quot;</span><span class="p">:</span> <span class="n">nodeid</span><span class="p">},</span>
+                <span class="p">{</span><span class="s2">&quot;server&quot;</span><span class="p">:</span> <span class="n">nodeid</span><span class="p">}</span>
+            <span class="p">]}</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="c1"># TODO: res is always exists, use len(res) instead?</span>
+            <span class="n">jobs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">res</span> <span class="ow">and</span> <span class="n">res</span><span class="o">.</span><span class="n">explain</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;executionStats&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;nReturned&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+                        <span class="n">jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LeotestJobCron</span><span class="p">(</span>
+                                            <span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+                                            <span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+                                            <span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+                                            <span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                                            <span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;start_date&#39;</span><span class="p">],</span>
+                                            <span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;end_date&#39;</span><span class="p">],</span>
+                                            <span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length_secs&#39;</span><span class="p">],</span> 
+                                            <span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                                            <span class="n">server</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">],</span> 
+                                            <span class="n">trigger</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">],</span>
+                                            <span class="o">**</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">]))</span>
+                    
+                    <span class="k">elif</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+                        <span class="n">jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LeotestJobAtq</span><span class="p">(</span>
+                                            <span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+                                            <span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+                                            <span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+                                            <span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+                                            <span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;start_date&#39;</span><span class="p">],</span>
+                                            <span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;end_date&#39;</span><span class="p">],</span>
+                                            <span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;length_secs&#39;</span><span class="p">],</span> 
+                                            <span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">],</span>
+                                            <span class="n">server</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">],</span> 
+                                            <span class="n">trigger</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">]))</span>
+                <span class="k">return</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="n">jobs</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.delete_job_by_id"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.delete_job_by_id">[docs]</a>    <span class="k">def</span> <span class="nf">delete_job_by_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobid</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;delete a job on Leotest&quot;&quot;&quot;</span>
+        <span class="c1"># check if the job exists </span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">jobid</span><span class="p">},</span> 
+                                            <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="s2">&quot;job with given jobid does not exist&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">delete_one</span><span class="p">({</span><span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">jobid</span><span class="p">},</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="s2">&quot;deleted job successfully&quot;</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.delete_jobs_by_nodeid"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.delete_jobs_by_nodeid">[docs]</a>    <span class="k">def</span> <span class="nf">delete_jobs_by_nodeid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;delete all jobs on a given node&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">delete_many</span><span class="p">({</span><span class="s2">&quot;nodeid&quot;</span><span class="p">:</span> <span class="n">nodeid</span><span class="p">},</span>
+                                        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">deleted_count</span><span class="p">,</span> <span class="s2">&quot;deleted records successfully&quot;</span><span class="p">)</span></div>
+    
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.update_job_date"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.update_job_date">[docs]</a>    <span class="k">def</span> <span class="nf">update_job_date</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobid</span><span class="p">,</span> <span class="n">start_date</span><span class="p">,</span> <span class="n">end_date</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;update a jobs start_time given jobid&quot;&quot;&quot;</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;[datastore] updating job time: jobid=</span><span class="si">%s</span><span class="s1"> start_date=</span><span class="si">%s</span><span class="s1"> end_date=</span><span class="si">%s</span><span class="s1">&#39;</span>
+                 <span class="o">%</span> <span class="p">(</span><span class="n">jobid</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">start_date</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">end_date</span><span class="p">)))</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jobs</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="n">jobid</span>
+            <span class="p">},</span> 
+            <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;start_date&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">start_date</span><span class="p">),</span> <span class="s1">&#39;end_date&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">end_date</span><span class="p">)}</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="s2">&quot;updated jobid start time successfully&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.update_run"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.update_run">[docs]</a>    <span class="k">def</span> <span class="nf">update_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run</span><span class="p">:</span> <span class="n">LeotestRun</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;add/update run on Leotest&quot;&quot;&quot;</span>
+
+        <span class="n">document</span> <span class="o">=</span> <span class="n">run</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="n">runid</span> <span class="o">=</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_runs</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;runid&#39;</span><span class="p">:</span> <span class="n">runid</span>
+            <span class="p">},</span> <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="n">document</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;updated run successfully&quot;</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_runs"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_runs">[docs]</a>    <span class="k">def</span> <span class="nf">get_runs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">runid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">jobid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nodeid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">userid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">time_range</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">runid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;runid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">runid</span>
+
+        <span class="k">if</span> <span class="n">jobid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;jobid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jobid</span>
+        
+        <span class="k">if</span> <span class="n">nodeid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;nodeid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">nodeid</span>
+        
+        <span class="k">if</span> <span class="n">userid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;userid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">userid</span>
+        
+        <span class="k">if</span> <span class="n">time_range</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;start_time&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;start_time&quot;</span><span class="p">][</span><span class="s2">&quot;$gte&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">time_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;start_time&quot;</span><span class="p">][</span><span class="s2">&quot;$lte&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetimeParse</span><span class="p">(</span><span class="n">time_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">runs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">limit</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_runs</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_runs</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">run</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+                <span class="n">run</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_id&#39;</span><span class="p">)</span>
+                <span class="n">runs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">LeotestRun</span><span class="p">(</span><span class="o">**</span><span class="n">run</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">runs</span></div>
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.register_node"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.register_node">[docs]</a>    <span class="k">def</span> <span class="nf">register_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">LeotestNode</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;register a node&quot;&quot;&quot;</span>
+        <span class="n">document</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;nodeid&quot;</span><span class="p">:</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">]},</span> 
+                                                    <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">exists</span><span class="p">:</span> 
+                <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;node with the given id exists&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="n">document</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;node successfully registered&quot;</span><span class="p">)</span>        </div>
+
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.delete_node"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.delete_node">[docs]</a>    <span class="k">def</span> <span class="nf">delete_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> <span class="n">delete_jobs</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;delete a node&quot;&quot;&quot;</span>
+
+        <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_nodes</span><span class="p">(</span><span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;node with given id does not exist&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">delete_jobs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">delete_jobs_by_nodeid</span><span class="p">(</span><span class="n">nodeid</span><span class="p">)</span>
+            
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">delete_one</span><span class="p">({</span><span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="n">nodeid</span><span class="p">},</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>   
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;node deleted&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.mark_node"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.mark_node">[docs]</a>    <span class="k">def</span> <span class="nf">mark_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;nodeid&quot;</span><span class="p">:</span> <span class="n">nodeid</span><span class="p">},</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;node with given id does not exist&#39;</span><span class="p">)</span>
+            
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="n">nodeid</span>
+            <span class="p">},</span> <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;last_active&#39;</span><span class="p">:</span> <span class="n">time_now</span><span class="p">()}</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;updated node successfully&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_nodes"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_nodes">[docs]</a>    <span class="k">def</span> <span class="nf">get_nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                        <span class="n">provider</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">activeThres</span><span class="o">=</span><span class="mi">600</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;get nodes&quot;&quot;&quot;</span>
+        <span class="n">query</span><span class="o">=</span><span class="p">{}</span>
+        
+        <span class="k">if</span> <span class="n">nodeid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;nodeid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">nodeid</span> 
+        
+        <span class="k">if</span> <span class="n">location</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">location</span> 
+        
+        <span class="k">if</span> <span class="n">name</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span> 
+        
+        <span class="k">if</span> <span class="n">provider</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;provider&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">provider</span> 
+        
+        <span class="k">if</span> <span class="n">active</span><span class="p">:</span>
+            <span class="n">thres</span> <span class="o">=</span> <span class="n">time_now</span><span class="p">()</span> <span class="o">-</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="n">activeThres</span><span class="p">)</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;last_active&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;last_active&quot;</span><span class="p">][</span><span class="s2">&quot;$gte&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">thres</span>
+        
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">nodes</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+                <span class="n">jobs_str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                <span class="n">exists</span><span class="p">,</span> <span class="n">jobs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_jobs_by_nodeid</span><span class="p">(</span><span class="n">node</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">exists</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">jobs</span><span class="p">:</span>
+                        <span class="n">msg_str</span> <span class="o">=</span> <span class="s1">&#39;&lt;jobid=</span><span class="si">%s</span><span class="s1"> userid=</span><span class="si">%s</span><span class="s1"> type=</span><span class="si">%s</span><span class="s1"> start=</span><span class="si">%s</span><span class="s1"> end=</span><span class="si">%s</span><span class="s1"> length=</span><span class="si">%s</span><span class="s1"> schedule=</span><span class="si">%s</span><span class="s1"> overhead=</span><span class="si">%s</span><span class="s1"> server=</span><span class="si">%s</span><span class="s1"> trigger=</span><span class="si">%s</span><span class="s1">&gt;&#39;</span>
+                        <span class="k">if</span> <span class="n">job</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+                            <span class="n">msg</span> <span class="o">=</span> <span class="n">msg_str</span> <span class="o">%</span> <span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">jobid</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">userid</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">start_date</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">end_date</span><span class="p">),</span>
+                                    <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">length_secs</span><span class="p">),</span> <span class="n">job</span><span class="o">.</span><span class="n">get_cron_string</span><span class="p">(),</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">overhead</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">server</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">trigger</span><span class="p">))</span>
+                        
+                        <span class="k">elif</span> <span class="n">job</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+                            <span class="n">msg</span> <span class="o">=</span> <span class="n">msg_str</span> <span class="o">%</span> <span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">jobid</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">userid</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">start_date</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">end_date</span><span class="p">),</span>
+                                    <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">length_secs</span><span class="p">),</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">overhead</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">server</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">trigger</span><span class="p">))</span>
+
+                        <span class="n">jobs_str</span> <span class="o">+=</span> <span class="n">msg</span>        
+
+                <span class="n">node</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_id&#39;</span><span class="p">)</span>
+                <span class="n">nodeobj</span> <span class="o">=</span> <span class="n">LeotestNode</span><span class="p">(</span><span class="o">**</span><span class="n">node</span><span class="p">)</span>
+                <span class="n">nodeobj</span><span class="o">.</span><span class="n">jobs</span> <span class="o">=</span> <span class="n">jobs_str</span>
+                <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nodeobj</span><span class="o">.</span><span class="n">document_proto_compatible</span><span class="p">())</span>
+            
+            <span class="k">return</span> <span class="n">nodes</span></div>
+    
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.update_node"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.update_node">[docs]</a>    <span class="k">def</span> <span class="nf">update_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> 
+			<span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+			<span class="n">description</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+			<span class="n">last_active</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+			<span class="n">coords</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+			<span class="n">location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+			<span class="n">provider</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+			<span class="n">public_ip</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        
+        <span class="sd">&quot;&quot;&quot;update node&quot;&quot;&quot;</span>
+        <span class="n">updates</span><span class="o">=</span><span class="p">{}</span>
+        
+        <span class="k">if</span> <span class="n">name</span><span class="p">:</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span> 
+
+        <span class="k">if</span> <span class="n">description</span><span class="p">:</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;description&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">description</span> 
+
+        <span class="k">if</span> <span class="n">last_active</span><span class="p">:</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;last_active&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">last_active</span>
+
+        <span class="k">if</span> <span class="n">coords</span><span class="p">:</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;coords&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">coords</span> 
+
+        <span class="k">if</span> <span class="n">location</span><span class="p">:</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;location&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">location</span> 
+        
+        <span class="k">if</span> <span class="n">provider</span><span class="p">:</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;provider&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">provider</span> 
+        
+        <span class="k">if</span> <span class="n">public_ip</span><span class="p">:</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;public_ip&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">public_ip</span>
+
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;[update_node] nodeid=</span><span class="si">%s</span><span class="s1"> updates=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">nodeid</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">updates</span><span class="p">)))</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="n">nodeid</span>
+            <span class="p">},</span> 
+            <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="n">updates</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;updated node successfully&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_scavenger_status"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_scavenger_status">[docs]</a>    <span class="k">def</span> <span class="nf">get_scavenger_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;get nodes&quot;&quot;&quot;</span>
+        <span class="n">query</span><span class="o">=</span><span class="p">{}</span>
+        
+        <span class="k">if</span> <span class="n">nodeid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;nodeid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">nodeid</span> 
+        
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="n">res</span><span class="p">:</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">scavenger_mode_active</span> <span class="o">=</span> <span class="n">node</span><span class="p">[</span><span class="s2">&quot;scavenger_mode_active&quot;</span><span class="p">]</span>
+                <span class="k">return</span> <span class="n">scavenger_mode_active</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.set_scavenger_status"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.set_scavenger_status">[docs]</a>    <span class="k">def</span> <span class="nf">set_scavenger_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> <span class="n">scavenger_mode_status</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;update a jobs start_time given jobid&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nodes</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="n">nodeid</span>
+            <span class="p">},</span> 
+            <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;scavenger_mode_active&#39;</span><span class="p">:</span> <span class="n">scavenger_mode_status</span><span class="p">}</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;updated scavenger_mode_status successfully&quot;</span><span class="p">)</span></div>
+    
+<div class="viewcode-block" id="LeotestDatastoreMongo.schedule_task"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.schedule_task">[docs]</a>    <span class="k">def</span> <span class="nf">schedule_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">:</span> <span class="n">LeotestTask</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;schedule task&quot;&quot;&quot;</span>
+        
+        <span class="n">document</span> <span class="o">=</span> <span class="n">task</span><span class="o">.</span><span class="n">document</span><span class="p">()</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">document</span><span class="p">[</span><span class="s1">&#39;taskid&#39;</span><span class="p">]},</span> 
+                                                    <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">exists</span><span class="p">:</span> 
+                <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;task with the given id exists&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">insert_one</span><span class="p">(</span><span class="n">document</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;task successfully scheduled&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.get_tasks"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.get_tasks">[docs]</a>    <span class="k">def</span> <span class="nf">get_tasks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">taskid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">runid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">jobid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nodeid</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;get tasks&quot;&quot;&quot;</span>
+
+        <span class="n">query</span><span class="o">=</span><span class="p">{}</span>
+        
+        <span class="k">if</span> <span class="n">taskid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;taskid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">taskid</span> 
+
+        <span class="k">if</span> <span class="n">runid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;runid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">runid</span>
+
+        <span class="k">if</span> <span class="n">jobid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;jobid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">jobid</span>
+
+        <span class="k">if</span> <span class="n">nodeid</span><span class="p">:</span>
+            <span class="n">query</span><span class="p">[</span><span class="s2">&quot;nodeid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">nodeid</span> 
+        
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">tasks</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>        
+                <span class="n">task</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;_id&#39;</span><span class="p">)</span>
+                <span class="n">status</span> <span class="o">=</span> <span class="n">task</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span>
+                <span class="n">task</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;status&#39;</span><span class="p">)</span>
+                <span class="n">task</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;expire_at&#39;</span><span class="p">)</span>
+                <span class="n">taskobj</span> <span class="o">=</span> <span class="n">LeotestTask</span><span class="p">(</span><span class="o">**</span><span class="n">task</span><span class="p">)</span>
+                <span class="n">taskobj</span><span class="o">.</span><span class="n">set_status</span><span class="p">(</span><span class="n">status</span><span class="p">)</span> 
+                <span class="n">tasks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">taskobj</span><span class="o">.</span><span class="n">document_proto_compatible</span><span class="p">())</span>
+            
+            <span class="k">return</span> <span class="n">tasks</span></div>
+
+<div class="viewcode-block" id="LeotestDatastoreMongo.update_task"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.update_task">[docs]</a>    <span class="k">def</span> <span class="nf">update_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">taskid</span><span class="p">,</span> <span class="n">status</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;update task&quot;&quot;&quot;</span>
+
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start_session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span> 
+            <span class="n">exists</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;taskid&quot;</span><span class="p">:</span> <span class="n">taskid</span><span class="p">},</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;task with given id does not exist&#39;</span><span class="p">)</span>
+            
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tasks</span><span class="o">.</span><span class="n">update_one</span><span class="p">({</span>
+                <span class="s1">&#39;taskid&#39;</span><span class="p">:</span> <span class="n">taskid</span>
+            <span class="p">},</span> <span class="p">{</span>
+                <span class="s1">&#39;$set&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;status&#39;</span><span class="p">:</span> <span class="n">status</span><span class="p">}</span>
+            <span class="p">},</span>
+            <span class="n">upsert</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;updated task successfully&quot;</span><span class="p">)</span></div></div>
+
+        
+
+<span class="c1"># user = LeotestUser(id=&#39;test-user&#39;, </span>
+<span class="c1">#                     name=&#39;test user&#39;, </span>
+<span class="c1">#                     role=LeotestUserRoles.ADMIN,</span>
+<span class="c1">#                     team=&#39;Project Leopard - MSRI&#39;)</span>
+
+<span class="c1"># userNew = LeotestUser(id=&#39;test-user&#39;, </span>
+<span class="c1">#                     name=&#39;test user&#39;, </span>
+<span class="c1">#                     role=LeotestUserRoles.NODE,</span>
+<span class="c1">#                     team=&#39;Project Leopard - MSRI&#39;)</span>
+
+
+<span class="c1"># job_params = {</span>
+<span class="c1">#     &quot;mode&quot;: &quot;docker&quot;,</span>
+<span class="c1">#     &quot;deploy&quot;: &quot;repository=hello-world;tag=latest&quot;,</span>
+<span class="c1">#     &quot;execute&quot;: &quot;image=hello-world&quot;,</span>
+<span class="c1">#     &quot;finish&quot;: &quot;&quot;</span>
+<span class="c1"># }</span>
+
+<span class="c1"># job = LeotestJobCron(jobid=&#39;test-job&#39;, </span>
+<span class="c1">#                     nodeid=&quot;test-node&quot;, </span>
+<span class="c1">#                     job_params=job_params)</span>
+
+<span class="c1"># jobNew = LeotestJobCron(jobid=&#39;test-job&#39;, </span>
+<span class="c1">#                     nodeid=&quot;test-node&quot;, </span>
+<span class="c1">#                     job_params=job_params,</span>
+<span class="c1">#                     minute=&#39;*/5&#39;)</span>
+
+<span class="c1"># db = LeotestDatastoreMongo()</span>
+
+
+
+<span class="c1"># print(&#39;allocating job&#39;)</span>
+<span class="c1"># db.add_job(job)</span>
+
+<span class="c1"># print(&#39;fetching jobs on test-node&#39;)</span>
+<span class="c1"># print(db.get_jobs_by_nodeid(&#39;test-node&#39;))</span>
+
+
+<span class="c1"># print(&#39;get job by jobid&#39;)</span>
+<span class="c1"># print(db.get_job_by_id(&#39;test-job&#39;))</span>
+
+<span class="c1"># print(&#39;modifying user&#39;)</span>
+<span class="c1"># db.modify_job(jobNew)</span>
+
+<span class="c1"># print(&#39;fetching jobs on test-node&#39;)</span>
+<span class="c1"># print(db.get_jobs_by_nodeid(&#39;test-node&#39;))</span>
+
+<span class="c1"># print(&#39;deleting job&#39;)</span>
+<span class="c1"># db.delete_job(jobNew)</span>
+
+<span class="c1"># print(&#39;fetching jobs on test-node&#39;)</span>
+<span class="c1"># print(db.get_jobs_by_nodeid(&#39;test-node&#39;))</span>
+
+<span class="c1"># print(&#39;inserting user&#39;)</span>
+<span class="c1"># db.add_user(user)</span>
+<span class="c1"># print(&#39;getting user&#39;)</span>
+<span class="c1"># print(db.get_user(&#39;test-user&#39;).document())</span>
+<span class="c1"># print(&#39;modifying user&#39;)</span>
+<span class="c1"># db.modify_user(userNew)</span>
+<span class="c1"># print(&#39;getting user&#39;)</span>
+<span class="c1"># print(db.get_user(&#39;test-user&#39;).document())</span>
+<span class="c1"># print(&#39;deleteing user&#39;)</span>
+<span class="c1"># db.delete_user(userNew)</span>
+<span class="c1"># print(&#39;getting user&#39;)</span>
+<span class="c1"># print(db.get_user(&#39;test-user&#39;).document())</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Shubham Tiwari, Aryan Taneja, Saksham Bhushan, M. Kassem, Nishanth Sastry, Aravindh Raman, Debopam Bhattacherjee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>node.scheduler &mdash; LEOScope 00.00.01 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            LEOScope
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">Orchestrator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#node">Node</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#common">Common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#cli">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html#services">Services</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">LEOScope</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">node.scheduler</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for node.scheduler</h1><div class="highlight"><pre>
+<span></span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">redis</span> 
+<span class="kn">import</span> <span class="nn">docker</span>
+<span class="kn">import</span> <span class="nn">logging</span> 
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">Process</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span><span class="p">,</span> <span class="n">timedelta</span>
+<span class="kn">from</span> <span class="nn">atd</span> <span class="kn">import</span> <span class="n">atd</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="kn">import</span> <span class="n">Popen</span><span class="p">,</span> <span class="n">PIPE</span>
+<span class="kn">from</span> <span class="nn">crontab</span> <span class="kn">import</span> <span class="n">CronTab</span>
+<span class="kn">from</span> <span class="nn">common.utils</span> <span class="kn">import</span> <span class="n">time_now</span><span class="p">,</span> <span class="n">get_public_ip</span>
+<span class="kn">from</span> <span class="nn">common.client</span> <span class="kn">import</span> <span class="n">LeotestClient</span>
+<span class="kn">from</span> <span class="nn">common.job</span> <span class="kn">import</span> <span class="n">LeotestJobCron</span><span class="p">,</span> <span class="n">LeotestJobAtq</span><span class="p">,</span> <span class="n">LeotestTask</span>
+<span class="kn">from</span> <span class="nn">google.protobuf.json_format</span> <span class="kn">import</span> <span class="n">MessageToDict</span>
+<span class="kn">from</span> <span class="nn">pymemcache.client.base</span> <span class="kn">import</span> <span class="n">Client</span> <span class="k">as</span> <span class="n">memcache_client</span>
+
+<span class="kn">import</span> <span class="nn">common.leotest_pb2_grpc</span> <span class="k">as</span> <span class="nn">pb2_grpc</span> 
+<span class="kn">import</span> <span class="nn">common.leotest_pb2</span> <span class="k">as</span> <span class="nn">pb2</span>
+
+<span class="kn">from</span> <span class="nn">node.trigger</span> <span class="kn">import</span> <span class="n">LeotestTriggerMode</span><span class="p">,</span> <span class="n">LeotestDockerNetworkMonitor</span><span class="p">,</span>\
+			<span class="n">LeotestGrpcMonitor</span><span class="p">,</span> <span class="n">LeotestSatelliteMonitor</span><span class="p">,</span> <span class="n">LeotestWeatherMonitor</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+	<span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> 
+	<span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(filename)s</span><span class="s2">:</span><span class="si">%(lineno)s</span><span class="s2"> </span><span class="si">%(thread)d</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="kill_all_jobs"><a class="viewcode-back" href="../../node.html#node.scheduler.kill_all_jobs">[docs]</a><span class="k">def</span> <span class="nf">kill_all_jobs</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> <span class="n">sessionstore</span><span class="p">,</span> <span class="n">resched_buffer</span><span class="o">=</span><span class="mi">1800</span><span class="p">):</span>
+	<span class="sd">&quot;&quot;&quot;imple.&quot;&quot;&quot;</span>
+	
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;kill_all_jobs called.&quot;</span><span class="p">)</span>
+	<span class="n">docker_client</span> <span class="o">=</span> <span class="n">docker</span><span class="o">.</span><span class="n">from_env</span><span class="p">()</span>
+
+	<span class="n">filters</span> <span class="o">=</span> <span class="p">{</span>
+		<span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;leotest=true&quot;</span><span class="p">,</span> <span class="s2">&quot;overhead=true&quot;</span><span class="p">],</span> 
+		<span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;running&quot;</span> 
+	<span class="p">}</span>
+	<span class="k">try</span><span class="p">:</span>
+		<span class="n">container_list</span> <span class="o">=</span> <span class="n">docker_client</span><span class="o">.</span><span class="n">containers</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
+
+		<span class="k">for</span> <span class="n">container</span> <span class="ow">in</span> <span class="n">container_list</span><span class="p">:</span>
+			<span class="c1"># update run status </span>
+			<span class="n">labels</span> <span class="o">=</span> <span class="n">container</span><span class="o">.</span><span class="n">labels</span> 
+			<span class="n">runid</span> <span class="o">=</span> <span class="n">labels</span><span class="p">[</span><span class="s2">&quot;runid&quot;</span><span class="p">]</span>
+			<span class="n">jobid</span> <span class="o">=</span> <span class="n">labels</span><span class="p">[</span><span class="s2">&quot;jobid&quot;</span><span class="p">]</span>
+			<span class="n">job_type</span> <span class="o">=</span> <span class="n">labels</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span>
+			<span class="n">end_date</span> <span class="o">=</span> <span class="n">labels</span><span class="p">[</span><span class="s2">&quot;end_date&quot;</span><span class="p">]</span>
+			<span class="n">client_params</span> <span class="o">=</span> <span class="p">{</span>
+				<span class="s1">&#39;runid&#39;</span><span class="p">:</span> <span class="n">runid</span><span class="p">,</span>
+				<span class="s1">&#39;jobid&#39;</span><span class="p">:</span> <span class="n">jobid</span><span class="p">,</span>
+				<span class="s1">&#39;nodeid&#39;</span><span class="p">:</span> <span class="n">nodeid</span><span class="p">,</span>
+				<span class="s1">&#39;start_time&#39;</span><span class="p">:</span> <span class="n">labels</span><span class="p">[</span><span class="s2">&quot;start_time&quot;</span><span class="p">]</span>
+			<span class="p">}</span>
+			<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">client_params</span><span class="p">)</span>
+			<span class="n">res</span> <span class="o">=</span> <span class="n">sessionstore</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_executor&quot;</span> <span class="o">%</span> <span class="n">runid</span><span class="p">)</span>
+			<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;executor session for runid=</span><span class="si">%s</span><span class="s1"> --&gt; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">runid</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">res</span><span class="p">)))</span>
+
+			<span class="n">container</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+			<span class="n">container</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+
+			<span class="c1"># TODO: Handle a race condition with the executor. As soon as the </span>
+			<span class="c1"># the container exits, the executor starts finishing up the job (artifact upload, clean-up).</span>
+			<span class="c1"># So there is a race condition between the reschedule status update by the scheduler (below) </span>
+			<span class="c1"># and the job status update that the executor will initiate. </span>
+			<span class="n">tries</span> <span class="o">=</span> <span class="mi">100</span>
+			<span class="k">while</span> <span class="n">sessionstore</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_executor&quot;</span> <span class="o">%</span> <span class="n">runid</span><span class="p">)</span> <span class="o">!=</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">tries</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+				<span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;waiting for executor to exit (runid=</span><span class="si">%s</span><span class="s1">) tries=</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">runid</span><span class="p">,</span> <span class="n">tries</span><span class="p">))</span>
+				<span class="n">tries</span> <span class="o">-=</span> <span class="mi">1</span>
+
+			<span class="k">if</span> <span class="n">job_type</span> <span class="o">==</span> <span class="s2">&quot;cron&quot;</span><span class="p">:</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;aborting run (scavenger mode is active): runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> type=</span><span class="si">%s</span><span class="s1">&#39;</span> 
+							<span class="o">%</span> <span class="p">(</span><span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">],</span> <span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">],</span> <span class="n">job_type</span><span class="p">))</span>
+				<span class="n">client</span><span class="o">.</span><span class="n">update_run</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s1">&#39;ABORTED&#39;</span><span class="p">,</span> 
+						<span class="n">status_message</span><span class="o">=</span><span class="s1">&#39;Job aborted: scavenger mode is active.&#39;</span><span class="p">,</span>
+						<span class="o">**</span><span class="n">client_params</span><span class="p">)</span>
+				
+			<span class="k">elif</span> <span class="n">job_type</span> <span class="o">==</span> <span class="s2">&quot;atq&quot;</span><span class="p">:</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;rescheduling job (scavenger mode is active): runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> type=</span><span class="si">%s</span><span class="s1">&#39;</span> 
+							<span class="o">%</span> <span class="p">(</span><span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">],</span> <span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">],</span> <span class="n">job_type</span><span class="p">))</span>
+				
+
+				<span class="n">starttime</span> <span class="o">=</span> <span class="n">time_now</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">resched_buffer</span><span class="p">))</span>
+				<span class="n">endtime</span> <span class="o">=</span> <span class="n">end_date</span>
+				<span class="n">ret</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">reschedule_job_nearest</span><span class="p">(</span>
+											<span class="n">jobid</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">starttime</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">endtime</span><span class="p">))</span>
+
+				<span class="c1"># message message_reschedule_job_response {</span>
+				<span class="c1"># 	bool rescheduled = 1; </span>
+				<span class="c1"># 	string message = 2; </span>
+				<span class="c1"># }</span>
+
+				<span class="n">terminate</span> <span class="o">=</span> <span class="p">{}</span>
+				<span class="n">msg</span> <span class="o">=</span> <span class="n">MessageToDict</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span>
+				<span class="k">if</span> <span class="s1">&#39;rescheduled&#39;</span> <span class="ow">in</span> <span class="n">msg</span> <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;rescheduled&#39;</span><span class="p">]:</span>
+					<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;atq job rescheduled (scavenger mode is active): &#39;</span> 
+	      					<span class="s1">&#39;runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> type=</span><span class="si">%s</span><span class="s1"> message=</span><span class="si">%s</span><span class="s1">&#39;</span> 
+							<span class="o">%</span> <span class="p">(</span><span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">],</span> <span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">],</span> <span class="n">job_type</span><span class="p">,</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]))</span>
+					
+					<span class="n">terminate</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;RESCHEDULED&#39;</span>
+					<span class="n">terminate</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;job run rescheduled (scavenger mode is active); reason: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span>
+				
+				<span class="k">else</span><span class="p">:</span>
+					<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;atq job reschedule failed (scavenger mode is active): &#39;</span> 
+	      					<span class="s1">&#39;runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> type=</span><span class="si">%s</span><span class="s1"> message=</span><span class="si">%s</span><span class="s1">&#39;</span> 
+							<span class="o">%</span> <span class="p">(</span><span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">],</span> <span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">],</span> <span class="n">job_type</span><span class="p">,</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]))</span>
+					
+					<span class="n">terminate</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;RESCHEDULE_FAILED&#39;</span>
+					<span class="n">terminate</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;job run reschedule failed (scavenger mode is active); reason: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span>
+				
+
+				<span class="n">client</span><span class="o">.</span><span class="n">update_run</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">terminate</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">],</span> 
+								<span class="n">status_message</span><span class="o">=</span><span class="n">terminate</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">],</span>
+								<span class="o">**</span><span class="n">client_params</span><span class="p">)</span>
+			
+			<span class="k">else</span><span class="p">:</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;job type not recognized: runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> type=</span><span class="si">%s</span><span class="s1">&#39;</span>
+	     				<span class="o">%</span> <span class="p">(</span><span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">],</span> <span class="n">client_params</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">]),</span> <span class="n">job_type</span><span class="p">)</span>
+			
+
+	<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">e</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="kill_task_docker"><a class="viewcode-back" href="../../node.html#node.scheduler.kill_task_docker">[docs]</a><span class="k">def</span> <span class="nf">kill_task_docker</span><span class="p">(</span><span class="n">runid</span><span class="p">,</span> <span class="n">jobid</span><span class="p">):</span>
+	<span class="sd">&quot;&quot;&quot;kill a docker container given name&quot;&quot;&quot;</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;kill_task_docker runid=</span><span class="si">%s</span><span class="s2"> jobid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">runid</span><span class="p">,</span> <span class="n">jobid</span><span class="p">))</span>
+	<span class="n">client</span> <span class="o">=</span> <span class="n">docker</span><span class="o">.</span><span class="n">from_env</span><span class="p">()</span>
+	<span class="n">label</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;runid=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="o">%</span><span class="n">runid</span><span class="p">,</span> <span class="s2">&quot;jobid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">jobid</span><span class="p">,</span> <span class="s2">&quot;server=true&quot;</span><span class="p">]</span> 
+	<span class="n">filters</span> <span class="o">=</span> <span class="p">{</span>
+		<span class="s2">&quot;label&quot;</span><span class="p">:</span> <span class="n">label</span><span class="p">,</span> 
+		<span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;running&quot;</span> 
+	<span class="p">}</span>
+
+	<span class="k">try</span><span class="p">:</span>
+		<span class="n">container_list</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">containers</span><span class="o">.</span><span class="n">list</span><span class="p">(</span><span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">)</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;kill_task_docker runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> container_list </span><span class="si">%s</span><span class="s1">&#39;</span> 
+							<span class="o">%</span> <span class="p">(</span><span class="n">runid</span><span class="p">,</span> <span class="n">jobid</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">container_list</span><span class="p">)))</span>
+		<span class="n">container</span> <span class="o">=</span> <span class="n">container_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;kill_task_docker runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> stopping container&#39;</span> 
+							<span class="o">%</span> <span class="p">(</span><span class="n">runid</span><span class="p">,</span> <span class="n">jobid</span><span class="p">))</span>
+		<span class="n">container</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+		<span class="c1"># log.info(&#39;removing container&#39;)</span>
+		<span class="c1"># container.remove()</span>
+	<span class="k">except</span><span class="p">:</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;kill_task_docker runid=</span><span class="si">%s</span><span class="s1"> jobid=</span><span class="si">%s</span><span class="s1"> no existing instance of measurement container found&#39;</span>
+					<span class="o">%</span> <span class="p">(</span><span class="n">runid</span><span class="p">,</span> <span class="n">jobid</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="LeotestTaskScheduler"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestTaskScheduler">[docs]</a><span class="k">class</span> <span class="nc">LeotestTaskScheduler</span><span class="p">:</span>
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">executor_path</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">executor_path</span> <span class="o">=</span> <span class="n">executor_path</span>
+	
+	<span class="k">def</span> <span class="nf">_add_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;add a task to task queue&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LeotestTaskScheduler.add_task"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestTaskScheduler.add_task">[docs]</a>	<span class="k">def</span> <span class="nf">add_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">_add_task</span><span class="p">(</span><span class="n">task</span><span class="p">)</span></div>
+
+	<span class="k">def</span> <span class="nf">_sync_tasks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_task_list</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;sync the tasks with the remote task list&quot;&quot;&quot;</span>
+	
+<div class="viewcode-block" id="LeotestTaskScheduler.sync_tasks"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestTaskScheduler.sync_tasks">[docs]</a>	<span class="k">def</span> <span class="nf">sync_tasks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_task_list</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">_sync_tasks</span><span class="p">(</span><span class="n">remote_task_list</span><span class="p">)</span></div>
+
+	<span class="k">def</span> <span class="nf">_remove_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;remove task from task queue&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LeotestTaskScheduler.remove_task"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestTaskScheduler.remove_task">[docs]</a>	<span class="k">def</span> <span class="nf">remove_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">_remove_task</span><span class="p">(</span><span class="n">task</span><span class="p">)</span></div></div>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Using python-atd:</span>
+
+<span class="sd">from atd import atd</span>
+<span class="sd">import datetime</span>
+
+<span class="sd">print(&#39;Create some jobs...&#39;)</span>
+<span class="sd">job1 = atd.at(&quot;echo lol &gt;&gt; /tmp/lolol&quot;, datetime.datetime.now() + </span>
+<span class="sd">	datetime.timedelta(minutes = 2))</span>
+
+<span class="sd">jobid = job1.command.split(&#39;#&#39;)[1].strip()</span>
+
+<span class="sd"># find jobs with a specific jobid: </span>
+<span class="sd">atq = atd.AtQueue()</span>
+<span class="sd">local_jobs = {}</span>
+
+<span class="sd">for job in atq.jobs:</span>
+<span class="sd">	jobid = job.command.split(&#39;#&#39;)[1].strip()</span>
+<span class="sd">	</span>
+<span class="sd">	if jobid not in the remote_job_list:</span>
+<span class="sd">		atd.atrm(job)</span>
+<span class="sd">	else:</span>
+<span class="sd">		local_jobs[jobid] = job</span>
+
+<span class="sd">for jobid, job in remote_job_list:</span>
+<span class="sd">	if jobid not in local_jobs:</span>
+<span class="sd">		# schedule the job </span>
+<span class="sd">		atd.at(&quot;./job_command # %s&quot; % jobid, datetime.datetime.now() + </span>
+<span class="sd">	datetime.timedelta(minutes = delta))</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="c1"># class LeotestTaskSchedulerAtq(LeotestTaskScheduler):</span>
+<span class="c1"># 	def __init__(self, executor_path, </span>
+<span class="c1"># 						nodeid,</span>
+<span class="c1"># 						artifactdir=&quot;/artifacts/&quot;,</span>
+<span class="c1"># 						grpc_hostname=&quot;localhost&quot;,</span>
+<span class="c1"># 						grpc_port=50051,</span>
+<span class="c1"># 						executor_config=&#39;/executor-config.yaml&#39;):</span>
+<span class="c1"># 		super().__init__(executor_path=executor_path)</span>
+
+<span class="c1"># 		self.artifactdir = artifactdir</span>
+<span class="c1"># 		self.grpc_hostname = grpc_hostname</span>
+<span class="c1"># 		self.grpc_port = grpc_port</span>
+<span class="c1"># 		self.executor_config = executor_config</span>
+<span class="c1"># 		self.nodeid = nodeid</span>
+
+<span class="c1"># 	def _add_task(self, leotest_task):</span>
+<span class="c1"># 		cmd = self.executor_path        </span>
+		
+<span class="c1"># 		cmd += &quot; --taskid=%s&quot; % leotest_task.get_taskid()</span>
+<span class="c1"># 		cmd += &quot; --runid=%s&quot; % leotest_task.get_runid()</span>
+<span class="c1"># 		cmd += &quot; --jobid=%s&quot; % leotest_task.get_jobid() </span>
+<span class="c1"># 		cmd += &quot; --nodeid=%s&quot; % leotest_task.get_nodeid()</span>
+<span class="c1"># 		cmd += &quot; --ttl-secs=%s&quot; % leotest_task.get_ttl_secs()</span>
+<span class="c1"># 		cmd += &quot; --server&quot;</span>
+<span class="c1"># 		cmd += &#39; --workdir=&quot;%s&quot;&#39; % self.artifactdir</span>
+<span class="c1"># 		cmd += &quot; --grpc-hostname=%s&quot; % self.grpc_hostname</span>
+<span class="c1"># 		cmd += &quot; --grpc-port=%s&quot; % self.grpc_port</span>
+<span class="c1"># 		cmd += &quot; --executor-config=%s&quot; % self.executor_config</span>
+<span class="c1"># 		cmd += &quot; --mode=docker&quot;</span>
+
+<span class="c1"># 		log.info(&#39;task command: %s&#39; % cmd)</span>
+
+<span class="c1"># 		logfile = os.path.join(self.artifactdir, &quot;executor_stdout.log&quot;)</span>
+<span class="c1"># 		cmd += &quot; &gt;&gt; %s&quot; % logfile</span>
+
+<span class="c1"># 		# schedule the job using at</span>
+<span class="c1"># 		Popen([&quot;at&quot;, &quot;now&quot;], stdin=PIPE, stdout=PIPE).communicate(</span>
+<span class="c1"># 			input=cmd.encode()</span>
+<span class="c1"># 		)</span>
+<div class="viewcode-block" id="LeotestTaskSchedulerPopen"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestTaskSchedulerPopen">[docs]</a><span class="k">class</span> <span class="nc">LeotestTaskSchedulerPopen</span><span class="p">(</span><span class="n">LeotestTaskScheduler</span><span class="p">):</span>
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">executor_path</span><span class="p">,</span>
+						<span class="n">module_name</span><span class="p">,</span>
+						<span class="n">workdir</span><span class="p">,</span> 
+						<span class="n">nodeid</span><span class="p">,</span>
+						<span class="n">artifactdir</span><span class="o">=</span><span class="s2">&quot;/artifacts/&quot;</span><span class="p">,</span>
+						<span class="n">grpc_hostname</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span>
+						<span class="n">grpc_port</span><span class="o">=</span><span class="mi">50051</span><span class="p">,</span>
+						<span class="n">executor_config</span><span class="o">=</span><span class="s1">&#39;/executor-config.yaml&#39;</span><span class="p">,</span>
+						<span class="n">access_token</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+		<span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">executor_path</span><span class="o">=</span><span class="n">executor_path</span><span class="p">)</span>
+
+		<span class="bp">self</span><span class="o">.</span><span class="n">executor_path</span> <span class="o">=</span> <span class="n">executor_path</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">workdir</span> <span class="o">=</span> <span class="n">workdir</span> 
+		<span class="bp">self</span><span class="o">.</span><span class="n">module_name</span> <span class="o">=</span> <span class="n">module_name</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span> <span class="o">=</span> <span class="n">artifactdir</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">grpc_hostname</span> <span class="o">=</span> <span class="n">grpc_hostname</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">grpc_port</span> <span class="o">=</span> <span class="n">grpc_port</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">executor_config</span> <span class="o">=</span> <span class="n">executor_config</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span> <span class="o">=</span> <span class="n">nodeid</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">access_token</span> <span class="o">=</span> <span class="n">access_token</span>
+
+	<span class="k">def</span> <span class="nf">_add_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">leotest_task</span><span class="p">):</span>
+		<span class="n">cmd</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">executor_path</span><span class="p">]</span>        
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;-m&quot;</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">module_name</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--taskid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_task</span><span class="o">.</span><span class="n">get_taskid</span><span class="p">())</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--runid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_task</span><span class="o">.</span><span class="n">get_runid</span><span class="p">())</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--jobid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_task</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">())</span> 
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--nodeid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_task</span><span class="o">.</span><span class="n">get_nodeid</span><span class="p">())</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--access-token=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">access_token</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--ttl-secs=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_task</span><span class="o">.</span><span class="n">get_ttl_secs</span><span class="p">())</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--server&quot;</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--workdir=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--grpc-hostname=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">grpc_hostname</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--grpc-port=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">grpc_port</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--executor-config=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">executor_config</span><span class="p">)</span>
+		<span class="n">cmd</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;--mode=docker&quot;</span><span class="p">)</span>
+
+		
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;task command: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">cmd</span><span class="p">))</span>
+
+		<span class="c1"># logfile = os.path.join(self.artifactdir, &quot;executor_stdout.log&quot;)</span>
+		<span class="c1"># cmd += &quot; &gt;&gt; %s&quot; % logfile</span>
+
+		<span class="c1"># schedule the job using Popen</span>
+		<span class="c1"># Popen([&quot;at&quot;, &quot;now&quot;], stdin=PIPE, stdout=PIPE).communicate(</span>
+			<span class="c1"># input=cmd.encode()</span>
+		<span class="c1"># )</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;-------------------------TASK COMMAND-----------------------------------------&#39;</span><span class="p">)</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">cmd</span><span class="p">)</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;-------------------------TASK COMMAND:END-----------------------------------------&#39;</span><span class="p">)</span>
+		<span class="n">Popen</span><span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">cwd</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">workdir</span><span class="p">,</span> <span class="n">preexec_fn</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">setsid</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LeotestJobScheduler"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobScheduler">[docs]</a><span class="k">class</span> <span class="nc">LeotestJobScheduler</span><span class="p">:</span>
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">executor_path</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">executor_path</span> <span class="o">=</span> <span class="n">executor_path</span>
+	
+	<span class="k">def</span> <span class="nf">_add_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;add a job to crontab&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LeotestJobScheduler.add_job"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobScheduler.add_job">[docs]</a>	<span class="k">def</span> <span class="nf">add_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">_add_job</span><span class="p">(</span><span class="n">job</span><span class="p">)</span></div>
+	
+	<span class="k">def</span> <span class="nf">_remove_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;remove job from crontab&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LeotestJobScheduler.remove_job"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobScheduler.remove_job">[docs]</a>	<span class="k">def</span> <span class="nf">remove_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">job</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">_remove_job</span><span class="p">(</span><span class="n">job</span><span class="p">)</span></div>
+	
+	<span class="k">def</span> <span class="nf">_sync_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_job_list</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;syncronize local job schedule with remote schedule&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LeotestJobScheduler.sync_jobs"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobScheduler.sync_jobs">[docs]</a>	<span class="k">def</span> <span class="nf">sync_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_job_list</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">_sync_jobs</span><span class="p">(</span><span class="n">remote_job_list</span><span class="p">)</span></div>
+
+
+	<span class="k">def</span> <span class="nf">_get_job_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="sd">&quot;&quot;&quot;return a list of jobs locally scheduled&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="LeotestJobScheduler.get_job_list"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobScheduler.get_job_list">[docs]</a>	<span class="k">def</span> <span class="nf">get_job_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="n">jobs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_job_list</span><span class="p">()</span>
+		<span class="k">return</span> <span class="n">jobs</span></div></div>
+
+<div class="viewcode-block" id="LeotestJobSchedulerAtq"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobSchedulerAtq">[docs]</a><span class="k">class</span> <span class="nc">LeotestJobSchedulerAtq</span><span class="p">(</span><span class="n">LeotestJobScheduler</span><span class="p">):</span>
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">executor_path</span><span class="p">,</span> 
+						<span class="n">nodeid</span><span class="p">,</span>
+						<span class="n">artifactdir</span><span class="o">=</span><span class="s2">&quot;/artifacts/&quot;</span><span class="p">,</span>
+						<span class="n">grpc_hostname</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span>
+						<span class="n">grpc_port</span><span class="o">=</span><span class="mi">50051</span><span class="p">,</span>
+						<span class="n">executor_config</span><span class="o">=</span><span class="s1">&#39;/executor-config.yaml&#39;</span><span class="p">,</span>
+						<span class="n">access_token</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+		<span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">executor_path</span><span class="o">=</span><span class="n">executor_path</span><span class="p">)</span>
+
+		<span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span> <span class="o">=</span> <span class="n">artifactdir</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">grpc_hostname</span> <span class="o">=</span> <span class="n">grpc_hostname</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">grpc_port</span> <span class="o">=</span> <span class="n">grpc_port</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">executor_config</span> <span class="o">=</span> <span class="n">executor_config</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span> <span class="o">=</span> <span class="n">nodeid</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">access_token</span> <span class="o">=</span> <span class="n">access_token</span>
+	
+<div class="viewcode-block" id="LeotestJobSchedulerAtq.get_jobid_from_command"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobSchedulerAtq.get_jobid_from_command">[docs]</a>	<span class="k">def</span> <span class="nf">get_jobid_from_command</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd</span><span class="p">):</span>
+		<span class="k">return</span> <span class="n">cmd</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
+
+	<span class="k">def</span> <span class="nf">get_job_with_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobid</span><span class="p">):</span>
+		<span class="n">job</span> <span class="o">=</span> <span class="kc">None</span> 
+		<span class="n">job_found</span> <span class="o">=</span> <span class="kc">False</span>
+		<span class="n">atq</span> <span class="o">=</span> <span class="n">atd</span><span class="o">.</span><span class="n">AtQueue</span><span class="p">()</span>
+		<span class="k">for</span> <span class="n">_job</span> <span class="ow">in</span> <span class="n">atq</span><span class="o">.</span><span class="n">jobs</span><span class="p">:</span>
+			<span class="k">if</span> <span class="n">jobid</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_jobid_from_command</span><span class="p">(</span><span class="n">_job</span><span class="o">.</span><span class="n">command</span><span class="p">):</span>
+				<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;job found: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">_job</span><span class="p">))</span>
+				<span class="n">job_found</span> <span class="o">=</span> <span class="kc">True</span> 
+				<span class="n">job</span> <span class="o">=</span> <span class="n">_job</span>
+				<span class="k">break</span> 
+
+		<span class="c1"># find jobs with a specific jobid: </span>
+		<span class="k">return</span> <span class="n">job_found</span><span class="p">,</span> <span class="n">job</span> 
+
+<div class="viewcode-block" id="LeotestJobSchedulerAtq.get_job_with_id"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobSchedulerAtq.get_job_with_id">[docs]</a>	<span class="k">def</span> <span class="nf">get_job_with_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobid</span><span class="p">):</span>
+		<span class="n">job</span> <span class="o">=</span> <span class="kc">None</span> 
+		<span class="n">job_found</span> <span class="o">=</span> <span class="kc">False</span>
+		<span class="n">atq</span> <span class="o">=</span> <span class="n">atd</span><span class="o">.</span><span class="n">AtQueue</span><span class="p">()</span>
+		<span class="k">for</span> <span class="n">_job</span> <span class="ow">in</span> <span class="n">atq</span><span class="o">.</span><span class="n">jobs</span><span class="p">:</span>
+			<span class="k">if</span> <span class="n">jobid</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_jobid_from_command</span><span class="p">(</span><span class="n">_job</span><span class="o">.</span><span class="n">command</span><span class="p">):</span>
+				<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;job found: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">_job</span><span class="p">))</span>
+				<span class="n">job_found</span> <span class="o">=</span> <span class="kc">True</span> 
+				<span class="n">job</span> <span class="o">=</span> <span class="n">_job</span>
+				<span class="k">break</span> 
+
+		<span class="c1"># find jobs with a specific jobid: </span>
+		<span class="k">return</span> <span class="n">job_found</span><span class="p">,</span> <span class="n">job</span> </div>
+
+<div class="viewcode-block" id="LeotestJobSchedulerAtq.list_all_jobs"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobSchedulerAtq.list_all_jobs">[docs]</a>	<span class="k">def</span> <span class="nf">list_all_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="n">jobs</span> <span class="o">=</span> <span class="p">[]</span>
+		<span class="n">atq</span> <span class="o">=</span> <span class="n">atd</span><span class="o">.</span><span class="n">AtQueue</span><span class="p">()</span>
+		<span class="k">for</span> <span class="n">_job</span> <span class="ow">in</span> <span class="n">atq</span><span class="o">.</span><span class="n">jobs</span><span class="p">:</span>
+			<span class="n">jobid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_jobid_from_command</span><span class="p">(</span><span class="n">_job</span><span class="o">.</span><span class="n">command</span><span class="p">)</span>
+			<span class="n">jobs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">jobid</span><span class="p">)</span>
+		
+		<span class="k">return</span> <span class="n">jobs</span> </div>
+
+<div class="viewcode-block" id="LeotestJobSchedulerAtq.jobid_in_remote_list"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobSchedulerAtq.jobid_in_remote_list">[docs]</a>	<span class="k">def</span> <span class="nf">jobid_in_remote_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jobid</span><span class="p">,</span> <span class="n">remote_job_list</span><span class="p">):</span>
+		<span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">remote_job_list</span><span class="p">:</span>
+			<span class="k">if</span> <span class="n">jobid</span> <span class="o">==</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">]:</span>
+				<span class="k">return</span> <span class="kc">True</span> 
+		
+		<span class="k">return</span> <span class="kc">False</span></div>
+
+	<span class="k">def</span> <span class="nf">_add_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">leotest_job</span><span class="p">):</span>
+		<span class="n">cmd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">executor_path</span>
+		<span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_job_params</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --</span><span class="si">%s</span><span class="s2">=&#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+		
+		<span class="c1"># append jobid </span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --jobid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">()</span> 
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --start-date=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">start_date</span> 
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --end-date=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">end_date</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --resched-buffer=</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="mi">1800</span> <span class="c1"># TODO: Make this configurable </span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --length-secs=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_length_secs</span><span class="p">()</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --nodeid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --userid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">userid</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --access-token=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">access_token</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s1">&#39; --workdir=&quot;</span><span class="si">%s</span><span class="s1">&quot;&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --grpc-hostname=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">grpc_hostname</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --grpc-port=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">grpc_port</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --executor-config=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">executor_config</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --mode=docker&quot;</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --type=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">type</span> 
+		
+		<span class="k">if</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">overhead</span><span class="p">:</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --overhead&quot;</span>
+		<span class="k">else</span><span class="p">:</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --no-overhead&quot;</span>
+
+		<span class="k">if</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">server</span><span class="p">:</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --setup-server&quot;</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --server-node=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">server</span>
+
+		<span class="n">logfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span><span class="p">,</span> <span class="s2">&quot;executor_stdout.log&quot;</span><span class="p">)</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; &gt;&gt; </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">logfile</span>
+
+		<span class="c1"># get current time </span>
+		<span class="k">if</span> <span class="n">time_now</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_start_time_obj</span><span class="p">():</span>
+			<span class="c1"># schedule now </span>
+			<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;not scheduling atq job now as time_now &gt;=&quot;</span><span class="si">%s</span><span class="s1">&quot;;&#39;</span> 
+					<span class="s1">&#39;cmd=&quot;</span><span class="si">%s</span><span class="s1"> # </span><span class="si">%s</span><span class="s1">&quot;&#39;</span> 
+					<span class="o">%</span> <span class="p">(</span><span class="n">leotest_job</span><span class="o">.</span><span class="n">start_date</span><span class="p">,</span> <span class="n">cmd</span><span class="p">,</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">()))</span>
+			
+			<span class="c1"># atd.at(&quot;%s # %s&quot; % (cmd, leotest_job.get_jobid()), </span>
+	  		<span class="c1"># 								time_now() + timedelta(seconds=10))</span>
+		<span class="k">else</span><span class="p">:</span>
+			<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;scheduling atq job at time=&quot;</span><span class="si">%s</span><span class="s1">&quot;;&#39;</span> 
+					<span class="s1">&#39;cmd=&quot;</span><span class="si">%s</span><span class="s1"> # </span><span class="si">%s</span><span class="s1">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">leotest_job</span><span class="o">.</span><span class="n">start_date</span><span class="p">,</span> 
+										<span class="n">cmd</span><span class="p">,</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">()))</span>
+			<span class="n">atd</span><span class="o">.</span><span class="n">at</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> # </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cmd</span><span class="p">,</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">()),</span> 
+	  										<span class="n">leotest_job</span><span class="o">.</span><span class="n">get_start_time_obj</span><span class="p">())</span>
+
+	<span class="k">def</span> <span class="nf">_sync_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_job_list</span><span class="p">):</span>
+		
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;clearing existing atq jobs&#39;</span><span class="p">)</span>
+		<span class="c1"># clear all jobs </span>
+		<span class="n">atq</span> <span class="o">=</span> <span class="n">atd</span><span class="o">.</span><span class="n">AtQueue</span><span class="p">()</span>
+
+		<span class="k">try</span><span class="p">:</span>
+			<span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">atq</span><span class="o">.</span><span class="n">jobs</span><span class="p">:</span>
+				<span class="n">atd</span><span class="o">.</span><span class="n">atrm</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
+		<span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+			<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+		<span class="n">local_jobs</span> <span class="o">=</span> <span class="p">{}</span>
+		<span class="n">atq</span> <span class="o">=</span> <span class="n">atd</span><span class="o">.</span><span class="n">AtQueue</span><span class="p">()</span>
+		<span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">atq</span><span class="o">.</span><span class="n">jobs</span><span class="p">:</span>
+			<span class="n">jobid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_jobid_from_command</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">command</span><span class="p">)</span>
+			
+			<span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">jobid_in_remote_list</span><span class="p">(</span><span class="n">jobid</span><span class="p">,</span> <span class="n">remote_job_list</span><span class="p">):</span>
+				<span class="n">atd</span><span class="o">.</span><span class="n">atrm</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
+			<span class="k">else</span><span class="p">:</span>
+				<span class="n">local_jobs</span><span class="p">[</span><span class="n">jobid</span><span class="p">]</span> <span class="o">=</span> <span class="n">job</span>
+
+		<span class="c1"># print(local_jobs)</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;syncing remote jobs: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">remote_job_list</span><span class="p">))</span>
+		<span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">remote_job_list</span><span class="p">:</span>
+			<span class="n">jobid</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">jobid</span>
+			<span class="k">if</span> <span class="n">jobid</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">local_jobs</span><span class="p">:</span>
+				<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;schedule </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">jobid</span><span class="p">)</span>
+				<span class="c1"># schedule the job </span>
+				<span class="bp">self</span><span class="o">.</span><span class="n">add_job</span><span class="p">(</span><span class="n">job</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LeotestJobSchedulerCron"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobSchedulerCron">[docs]</a><span class="k">class</span> <span class="nc">LeotestJobSchedulerCron</span><span class="p">(</span><span class="n">LeotestJobScheduler</span><span class="p">):</span>
+	<span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">executor_path</span><span class="p">,</span> 
+						<span class="n">nodeid</span><span class="p">,</span>
+						<span class="n">artifactdir</span><span class="o">=</span><span class="s2">&quot;/artifacts/&quot;</span><span class="p">,</span>
+						<span class="n">grpc_hostname</span><span class="o">=</span><span class="s2">&quot;localhost&quot;</span><span class="p">,</span>
+						<span class="n">grpc_port</span><span class="o">=</span><span class="mi">50051</span><span class="p">,</span>
+						<span class="n">executor_config</span><span class="o">=</span><span class="s1">&#39;/executor-config.yaml&#39;</span><span class="p">,</span>
+						<span class="n">access_token</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+		<span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">executor_path</span><span class="o">=</span><span class="n">executor_path</span><span class="p">)</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">cron</span> <span class="o">=</span> <span class="n">CronTab</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span> <span class="o">=</span> <span class="n">artifactdir</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">grpc_hostname</span> <span class="o">=</span> <span class="n">grpc_hostname</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">grpc_port</span> <span class="o">=</span> <span class="n">grpc_port</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">executor_config</span> <span class="o">=</span> <span class="n">executor_config</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span> <span class="o">=</span> <span class="n">nodeid</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">access_token</span> <span class="o">=</span> <span class="n">access_token</span>
+
+	<span class="k">def</span> <span class="nf">_add_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">leotest_job</span><span class="p">):</span>
+		<span class="n">cmd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">executor_path</span>
+		<span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_job_params</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --</span><span class="si">%s</span><span class="s2">=&#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+		
+		<span class="c1"># append jobid </span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --jobid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">()</span> 
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --start-date=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">start_date</span> 
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --end-date=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">end_date</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --resched-buffer=</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="mi">1800</span> <span class="c1"># TODO: Make this configurable </span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --length-secs=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">get_length_secs</span><span class="p">()</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --nodeid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodeid</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --userid=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">userid</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --access-token=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">access_token</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s1">&#39; --workdir=&quot;</span><span class="si">%s</span><span class="s1">&quot;&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --grpc-hostname=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">grpc_hostname</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --grpc-port=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">grpc_port</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --executor-config=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">executor_config</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --mode=docker&quot;</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --type=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">type</span> 
+
+		<span class="k">if</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">overhead</span><span class="p">:</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --overhead&quot;</span>
+		<span class="k">else</span><span class="p">:</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --no-overhead&quot;</span>
+
+		<span class="k">if</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">server</span><span class="p">:</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --setup-server&quot;</span>
+			<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; --server-node=</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">leotest_job</span><span class="o">.</span><span class="n">server</span>
+
+		<span class="n">logfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">artifactdir</span><span class="p">,</span> <span class="s2">&quot;executor_stdout.log&quot;</span><span class="p">)</span>
+		<span class="n">cmd</span> <span class="o">+=</span> <span class="s2">&quot; &gt;&gt; </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">logfile</span>
+
+		<span class="n">job</span>  <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cron</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">command</span><span class="o">=</span><span class="n">cmd</span><span class="p">,</span> 
+							<span class="n">comment</span><span class="o">=</span><span class="n">leotest_job</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">())</span>
+		<span class="n">job</span><span class="o">.</span><span class="n">setall</span><span class="p">(</span><span class="n">leotest_job</span><span class="o">.</span><span class="n">get_cron_string</span><span class="p">())</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">cron</span><span class="o">.</span><span class="n">write</span><span class="p">()</span> 
+	
+	<span class="k">def</span> <span class="nf">_remove_job</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">leotest_job</span><span class="p">):</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">cron</span><span class="o">.</span><span class="n">remove_all</span><span class="p">(</span><span class="n">comment</span><span class="o">=</span><span class="n">leotest_job</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">())</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">cron</span><span class="o">.</span><span class="n">write</span><span class="p">()</span>
+
+	<span class="k">def</span> <span class="nf">_sync_jobs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_leotest_jobs</span><span class="p">):</span>
+		<span class="c1"># clear all jobs and add them again </span>
+		<span class="c1"># this ensures that any modifications to cron schedules are replicated</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">cron</span><span class="o">.</span><span class="n">remove_all</span><span class="p">()</span>
+		<span class="k">for</span> <span class="n">leotest_job</span> <span class="ow">in</span> <span class="n">remote_leotest_jobs</span><span class="p">:</span>
+			<span class="bp">self</span><span class="o">.</span><span class="n">add_job</span><span class="p">(</span><span class="n">leotest_job</span><span class="p">)</span>
+		<span class="c1"># in case there are no jobs, ensure we perform a write() to clear the crontab</span>
+		<span class="bp">self</span><span class="o">.</span><span class="n">cron</span><span class="o">.</span><span class="n">write</span><span class="p">()</span>
+	
+<div class="viewcode-block" id="LeotestJobSchedulerCron.get_params_from_cmd"><a class="viewcode-back" href="../../node.html#node.scheduler.LeotestJobSchedulerCron.get_params_from_cmd">[docs]</a>	<span class="k">def</span> <span class="nf">get_params_from_cmd</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cmd</span><span class="p">):</span>
+		<span class="n">params</span> <span class="o">=</span> <span class="p">{}</span>
+		<span class="n">tokens</span> <span class="o">=</span> <span class="n">cmd</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">)</span>
+		<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">tokens</span><span class="p">)):</span>
+			<span class="n">arg</span> <span class="o">=</span> <span class="n">tokens</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+			<span class="n">arg_split</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="p">)</span>
+			<span class="n">key</span> <span class="o">=</span> <span class="n">arg_split</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">2</span><span class="p">:]</span>
+			<span class="n">val</span> <span class="o">=</span> <span class="n">arg_split</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+			<span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+		<span class="k">return</span> <span class="n">params</span></div>
+
+	<span class="k">def</span> <span class="nf">_get_job_list</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+		<span class="n">leotest_job_list</span> <span class="o">=</span> <span class="p">[]</span>
+		<span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cron</span><span class="p">:</span>
+			<span class="n">jobid</span> <span class="o">=</span> <span class="n">job</span><span class="o">.</span><span class="n">comment</span> 
+			<span class="n">job_params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_params_from_cmd</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">command</span><span class="p">)</span> 
+			<span class="c1"># TODO: parse command to get job parameters </span>
+
+			<span class="n">leotest_job</span> <span class="o">=</span> <span class="n">LeotestJobCron</span><span class="p">(</span><span class="n">jobid</span> <span class="o">=</span> <span class="n">jobid</span><span class="p">,</span>
+									<span class="n">job_params</span><span class="o">=</span><span class="n">job_params</span><span class="p">,</span>  
+									<span class="n">minute</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">minute</span><span class="p">),</span>
+									<span class="n">hour</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">hour</span><span class="p">),</span>
+									<span class="n">day_of_month</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">dom</span><span class="p">),</span>
+									<span class="n">month</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">month</span><span class="p">),</span>
+									<span class="n">day_of_week</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">dow</span><span class="p">))</span>
+
+			<span class="n">leotest_job_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">leotest_job</span><span class="p">)</span>
+		
+		<span class="k">return</span> <span class="n">leotest_job_list</span></div>
+
+
+<span class="k">def</span> <span class="nf">_scheduler_execute</span><span class="p">(</span><span class="n">nodeid</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">cron_scheduler</span><span class="p">,</span> <span class="n">atq_scheduler</span><span class="p">,</span> <span class="n">task_scheduler</span><span class="p">,</span> 
+		       			<span class="n">sessionstore</span><span class="p">,</span> <span class="n">trigger_module</span><span class="p">,</span> <span class="n">log</span><span class="p">):</span>
+	
+	<span class="n">client</span><span class="o">.</span><span class="n">init_grpc_client</span><span class="p">()</span> <span class="c1"># reset client state as socket does not exist on new process</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;sending heartbeat&#39;</span><span class="p">)</span>
+	<span class="n">client</span><span class="o">.</span><span class="n">send_heartbeat</span><span class="p">(</span><span class="n">nodeid</span><span class="p">)</span>
+	<span class="n">client</span><span class="o">.</span><span class="n">update_node</span><span class="p">(</span><span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span> <span class="n">public_ip</span><span class="o">=</span><span class="n">get_public_ip</span><span class="p">())</span>
+
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;fetching jobs from orchestrator&#39;</span><span class="p">)</span>
+	<span class="n">res</span> <span class="o">=</span> <span class="n">MessageToDict</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_jobs_by_nodeid</span><span class="p">(</span><span class="n">nodeid</span><span class="p">))</span>
+	<span class="c1"># {&#39;exists&#39;: True, &#39;jobs&#39;: [{&#39;id&#39;: &#39;test-id-1&#39;, &#39;nodeid&#39;: &#39;test-node&#39;, &#39;params&#39;: {&#39;mode&#39;: &#39;docker&#39;, &#39;deploy&#39;: &#39;random deploy&#39;, &#39;execute&#39;: &#39;random execute&#39;, &#39;finish&#39;: &#39;random finish&#39;}, &#39;schedule&#39;: &#39;*/6 * * * *&#39;}, {&#39;id&#39;: &#39;test-id-2&#39;, &#39;nodeid&#39;: &#39;test-node&#39;, &#39;params&#39;: {&#39;mode&#39;: &#39;docker&#39;, &#39;deploy&#39;: &#39;random deploy&#39;, &#39;execute&#39;: &#39;random execute&#39;, &#39;finish&#39;: &#39;random finish&#39;}, &#39;schedule&#39;: &#39;*/6 * * 2-10 *&#39;}]}</span>
+	<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+
+	<span class="n">remote_job_list</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cron&#39;</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span> <span class="p">[]}</span>
+
+	<span class="k">if</span> <span class="s1">&#39;jobs&#39;</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+		<span class="n">logmsg</span> <span class="o">=</span> <span class="s1">&#39;syncing jobs: &#39;</span>
+		<span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">res</span><span class="p">[</span><span class="s1">&#39;jobs&#39;</span><span class="p">]:</span>
+			<span class="k">if</span> <span class="n">nodeid</span> <span class="o">!=</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">]:</span>
+				<span class="k">continue</span>
+			<span class="n">server</span> <span class="o">=</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;server&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="s1">&#39;server&#39;</span> <span class="ow">in</span> <span class="n">job</span> <span class="k">else</span> <span class="kc">None</span>
+			<span class="n">trigger</span> <span class="o">=</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;trigger&#39;</span><span class="p">]</span> <span class="k">if</span> <span class="s1">&#39;trigger&#39;</span> <span class="ow">in</span> <span class="n">job</span> <span class="k">else</span> <span class="kc">None</span> 		
+			<span class="n">job_type</span> <span class="o">=</span> <span class="n">job</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">if</span> <span class="s1">&#39;type&#39;</span> <span class="ow">in</span> <span class="n">job</span> <span class="k">else</span> <span class="s1">&#39;cron&#39;</span>
+			<span class="k">if</span> <span class="ow">not</span> <span class="s1">&#39;overhead&#39;</span> <span class="ow">in</span> <span class="n">job</span><span class="p">:</span>
+				<span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+			<span class="n">logmsg</span> <span class="o">+=</span> <span class="s1">&#39;&lt;id=</span><span class="si">%s</span><span class="s1">,type=</span><span class="si">%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span> <span class="n">job_type</span><span class="p">)</span>
+
+			<span class="k">if</span> <span class="n">job_type</span> <span class="o">==</span> <span class="s1">&#39;cron&#39;</span><span class="p">:</span>
+				<span class="n">leo_job</span> <span class="o">=</span> <span class="n">LeotestJobCron</span><span class="p">(</span><span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+										<span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+										<span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+										<span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;startDate&#39;</span><span class="p">],</span>
+										<span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;endDate&#39;</span><span class="p">],</span>
+										<span class="n">server</span><span class="o">=</span><span class="n">server</span><span class="p">,</span>
+										<span class="n">trigger</span><span class="o">=</span><span class="n">trigger</span><span class="p">,</span>
+										<span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;lengthSecs&#39;</span><span class="p">],</span>
+										<span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+										<span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">])</span>
+				<span class="n">leo_job</span><span class="o">.</span><span class="n">set_schedule_cron</span><span class="p">(</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;schedule&#39;</span><span class="p">])</span>
+				<span class="n">remote_job_list</span><span class="p">[</span><span class="s1">&#39;cron&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">leo_job</span><span class="p">)</span>
+			
+			<span class="k">elif</span> <span class="n">job_type</span> <span class="o">==</span> <span class="s1">&#39;atq&#39;</span><span class="p">:</span>
+				<span class="n">leo_job</span> <span class="o">=</span> <span class="n">LeotestJobAtq</span><span class="p">(</span><span class="n">jobid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">],</span>
+					<span class="n">nodeid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+					<span class="n">userid</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;userid&#39;</span><span class="p">],</span>
+					<span class="n">start_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;startDate&#39;</span><span class="p">],</span>
+					<span class="n">end_date</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;endDate&#39;</span><span class="p">],</span>
+					<span class="n">server</span><span class="o">=</span><span class="n">server</span><span class="p">,</span>
+					<span class="n">trigger</span><span class="o">=</span><span class="n">trigger</span><span class="p">,</span>
+					<span class="n">length_secs</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;lengthSecs&#39;</span><span class="p">],</span>
+					<span class="n">job_params</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;params&#39;</span><span class="p">],</span>
+					<span class="n">overhead</span><span class="o">=</span><span class="n">job</span><span class="p">[</span><span class="s1">&#39;overhead&#39;</span><span class="p">])</span>
+				
+				<span class="n">remote_job_list</span><span class="p">[</span><span class="s1">&#39;atq&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">leo_job</span><span class="p">)</span>
+		
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">logmsg</span><span class="p">)</span>
+
+	<span class="n">cron_scheduler</span><span class="o">.</span><span class="n">sync_jobs</span><span class="p">(</span><span class="n">remote_job_list</span><span class="p">[</span><span class="s1">&#39;cron&#39;</span><span class="p">])</span>
+	<span class="n">atq_scheduler</span><span class="o">.</span><span class="n">sync_jobs</span><span class="p">(</span><span class="n">remote_job_list</span><span class="p">[</span><span class="s1">&#39;atq&#39;</span><span class="p">])</span>
+	<span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">remote_job_list</span><span class="p">:</span>
+		<span class="n">trigger_module</span><span class="o">.</span><span class="n">sync_triggers</span><span class="p">(</span><span class="n">remote_job_list</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;fetching tasks from orchestrator&#39;</span><span class="p">)</span>
+	<span class="n">res</span> <span class="o">=</span> <span class="n">MessageToDict</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_tasks</span><span class="p">(</span><span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">))</span>
+	<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="s1">&#39;tasks&#39;</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+		<span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="n">res</span><span class="p">[</span><span class="s1">&#39;tasks&#39;</span><span class="p">]:</span>
+			<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">task</span><span class="p">)</span>
+			<span class="n">task_type</span> <span class="o">=</span> <span class="n">task</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span>
+			<span class="n">leo_task</span> <span class="o">=</span> <span class="n">LeotestTask</span><span class="p">(</span><span class="n">taskid</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;taskid&#39;</span><span class="p">],</span>
+									<span class="n">runid</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;runid&#39;</span><span class="p">],</span>
+									<span class="n">jobid</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;jobid&#39;</span><span class="p">],</span>
+									<span class="n">nodeid</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;nodeid&#39;</span><span class="p">],</span>
+									<span class="n">task_type</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">],</span>
+									<span class="n">ttl_secs</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;ttlSecs&#39;</span><span class="p">])</span>
+			
+			<span class="k">if</span> <span class="s1">&#39;status&#39;</span> <span class="ow">in</span> <span class="n">task</span> <span class="ow">and</span> <span class="n">task</span><span class="p">[</span><span class="s1">&#39;status&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;TASK_COMPLETE&#39;</span><span class="p">:</span>
+				<span class="c1"># task_type_str = pb2.task_type.Name(task_type)</span>
+				<span class="n">exists</span> <span class="o">=</span> <span class="n">sessionstore</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;taskid&#39;</span><span class="p">],</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+				<span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+					<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;task </span><span class="si">%s</span><span class="s1"> does not exist. Adding to sessionstore&#39;</span>
+								<span class="o">%</span> <span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;taskid&#39;</span><span class="p">]))</span>
+					<span class="n">sessionstore</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;taskid&#39;</span><span class="p">],</span> 
+										<span class="n">value</span><span class="o">=</span><span class="s1">&#39;1&#39;</span><span class="p">,</span> 
+										<span class="c1"># expire=int(task[&#39;ttlSecs&#39;]) + 30</span>
+										<span class="n">expire</span><span class="o">=</span><span class="mi">24</span><span class="o">*</span><span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="p">)</span> <span class="c1"># 24 hours </span>
+					
+					<span class="k">if</span> <span class="n">task_type</span> <span class="o">==</span> <span class="s1">&#39;SERVER_START&#39;</span><span class="p">:</span>
+						<span class="c1"># add to task scheduler </span>
+						<span class="n">task_scheduler</span><span class="o">.</span><span class="n">add_task</span><span class="p">(</span><span class="n">leo_task</span><span class="p">)</span>
+
+					<span class="k">elif</span> <span class="n">task_type</span> <span class="o">==</span> <span class="s2">&quot;SERVER_STOP&quot;</span><span class="p">:</span>
+						<span class="c1"># get the container name and kill it </span>
+						<span class="n">kill_task_docker</span><span class="p">(</span><span class="n">leo_task</span><span class="o">.</span><span class="n">get_runid</span><span class="p">(),</span> <span class="n">leo_task</span><span class="o">.</span><span class="n">get_jobid</span><span class="p">())</span>
+						<span class="n">client</span><span class="o">.</span><span class="n">update_task</span><span class="p">(</span><span class="n">taskid</span><span class="o">=</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;taskid&#39;</span><span class="p">],</span> <span class="n">status</span><span class="o">=</span><span class="s1">&#39;TASK_COMPLETE&#39;</span><span class="p">)</span>
+
+					<span class="k">else</span><span class="p">:</span>
+						<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;no such task </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">task_type</span><span class="p">)</span> 
+
+				<span class="k">else</span><span class="p">:</span>
+					<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;task </span><span class="si">%s</span><span class="s1"> exists, not adding.&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">task</span><span class="p">[</span><span class="s1">&#39;taskid&#39;</span><span class="p">]))</span>
+	
+	<span class="c1"># check for scavenger status, if there are jobs running, bring them down </span>
+	<span class="n">msg</span> <span class="o">=</span> <span class="n">MessageToDict</span><span class="p">(</span><span class="n">client</span><span class="o">.</span><span class="n">get_scavenger_status</span><span class="p">(</span><span class="n">nodeid</span><span class="p">))</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+	<span class="k">if</span> <span class="s1">&#39;scavengerModeActive&#39;</span> <span class="ow">in</span> <span class="n">msg</span> <span class="ow">and</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;scavengerModeActive&#39;</span><span class="p">]</span><span class="o">==</span><span class="kc">True</span><span class="p">:</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;scavenger mode is active; killing all job containers.&#39;</span><span class="p">)</span>
+		<span class="c1"># bring down all containers belonging to LEOScope </span>
+		<span class="c1"># we want to execute this async. to avoid schduler loop stalls.</span>
+		<span class="n">thread</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">kill_all_jobs</span><span class="p">,</span> 
+									<span class="n">args</span><span class="o">=</span><span class="p">[</span><span class="n">client</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> <span class="n">sessionstore</span><span class="p">])</span>
+		<span class="n">thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+		<span class="c1"># kill_all_jobs(client, nodeid, sessionstore)</span>
+
+<div class="viewcode-block" id="scheduler_loop"><a class="viewcode-back" href="../../node.html#node.scheduler.scheduler_loop">[docs]</a><span class="k">def</span> <span class="nf">scheduler_loop</span><span class="p">(</span><span class="n">nodeid</span><span class="p">,</span> 
+					<span class="n">grpc_hostname</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> 
+					<span class="n">grpc_port</span><span class="o">=</span><span class="mi">50051</span><span class="p">,</span> 
+					<span class="n">interval</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+					<span class="n">workdir</span><span class="o">=</span><span class="s2">&quot;/home/leotest/&quot;</span><span class="p">,</span>
+					<span class="n">artifactdir</span><span class="o">=</span><span class="s2">&quot;/artifacts/&quot;</span><span class="p">,</span>
+					<span class="n">executor_config</span><span class="o">=</span><span class="s2">&quot;/executor-config.yaml&quot;</span><span class="p">,</span>
+					<span class="n">access_token</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">):</span>
+
+
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;entered scheduler loop&quot;</span><span class="p">)</span>
+	<span class="n">sessionstore</span> <span class="o">=</span> <span class="n">memcache_client</span><span class="p">(</span><span class="s1">&#39;memcached:11211&#39;</span><span class="p">)</span>
+
+	<span class="c1"># client = LeotestClient(</span>
+	<span class="c1"># 	grpc_hostname=grpc_hostname, </span>
+	<span class="c1"># 	grpc_port=grpc_port,</span>
+	<span class="c1"># 	userid=nodeid, access_token=access_token)</span>
+	
+	<span class="n">exec_hook</span> <span class="o">=</span> <span class="s2">&quot;cd </span><span class="si">%s</span><span class="s2"> &amp;&amp; /usr/local/bin/python -m node.executor&quot;</span> <span class="o">%</span> <span class="n">workdir</span>
+	<span class="n">cron_scheduler</span> <span class="o">=</span> <span class="n">LeotestJobSchedulerCron</span><span class="p">(</span><span class="n">executor_path</span><span class="o">=</span><span class="n">exec_hook</span><span class="p">,</span>
+										<span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span>
+										<span class="n">artifactdir</span><span class="o">=</span><span class="n">artifactdir</span><span class="p">,</span>
+										<span class="n">grpc_hostname</span><span class="o">=</span><span class="n">grpc_hostname</span><span class="p">,</span> 
+										<span class="n">grpc_port</span><span class="o">=</span><span class="n">grpc_port</span><span class="p">,</span>
+										<span class="n">executor_config</span><span class="o">=</span><span class="n">executor_config</span><span class="p">,</span>
+										<span class="n">access_token</span><span class="o">=</span><span class="n">access_token</span><span class="p">)</span>
+
+
+	<span class="n">atq_scheduler</span> <span class="o">=</span> <span class="n">LeotestJobSchedulerAtq</span><span class="p">(</span><span class="n">executor_path</span><span class="o">=</span><span class="n">exec_hook</span><span class="p">,</span>
+										<span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span>
+										<span class="n">artifactdir</span><span class="o">=</span><span class="n">artifactdir</span><span class="p">,</span>
+										<span class="n">grpc_hostname</span><span class="o">=</span><span class="n">grpc_hostname</span><span class="p">,</span> 
+										<span class="n">grpc_port</span><span class="o">=</span><span class="n">grpc_port</span><span class="p">,</span>
+										<span class="n">executor_config</span><span class="o">=</span><span class="n">executor_config</span><span class="p">,</span>
+										<span class="n">access_token</span><span class="o">=</span><span class="n">access_token</span><span class="p">)</span>
+
+	<span class="c1"># task_scheduler = LeotestTaskSchedulerAtq(executor_path=exec_hook,</span>
+	<span class="c1">#                                     nodeid=nodeid,</span>
+	<span class="c1">#                                     artifactdir=artifactdir,</span>
+	<span class="c1">#                                     grpc_hostname=grpc_hostname, </span>
+	<span class="c1"># 	                                grpc_port=grpc_port,</span>
+	<span class="c1">#                                     executor_config=executor_config)</span>
+
+	<span class="n">task_scheduler</span> <span class="o">=</span> <span class="n">LeotestTaskSchedulerPopen</span><span class="p">(</span>
+								<span class="n">executor_path</span><span class="o">=</span><span class="s2">&quot;/usr/local/bin/python&quot;</span><span class="p">,</span>
+								<span class="n">module_name</span><span class="o">=</span><span class="s2">&quot;node.executor&quot;</span><span class="p">,</span>
+								<span class="n">workdir</span><span class="o">=</span><span class="n">workdir</span><span class="p">,</span>
+								<span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span>
+								<span class="n">artifactdir</span><span class="o">=</span><span class="n">artifactdir</span><span class="p">,</span>
+								<span class="n">grpc_hostname</span><span class="o">=</span><span class="n">grpc_hostname</span><span class="p">,</span> 
+								<span class="n">grpc_port</span><span class="o">=</span><span class="n">grpc_port</span><span class="p">,</span>
+								<span class="n">executor_config</span><span class="o">=</span><span class="n">executor_config</span><span class="p">,</span>
+								<span class="n">access_token</span><span class="o">=</span><span class="n">access_token</span><span class="p">)</span>
+
+	<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">	pull node information</span>
+<span class="sd">	&quot;&quot;&quot;</span>
+	<span class="n">client</span> <span class="o">=</span> <span class="n">LeotestClient</span><span class="p">(</span>
+		<span class="n">grpc_hostname</span><span class="o">=</span><span class="n">grpc_hostname</span><span class="p">,</span> 
+		<span class="n">grpc_port</span><span class="o">=</span><span class="n">grpc_port</span><span class="p">,</span>
+		<span class="n">userid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span> <span class="n">access_token</span><span class="o">=</span><span class="n">access_token</span><span class="p">)</span>
+	
+	<span class="n">res</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_config</span><span class="p">()</span>
+
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">MessageToDict</span><span class="p">(</span><span class="n">res</span><span class="p">))</span>
+	<span class="n">config</span> <span class="o">=</span> <span class="n">MessageToDict</span><span class="p">(</span><span class="n">res</span><span class="p">)[</span><span class="s1">&#39;config&#39;</span><span class="p">]</span>
+	<span class="n">weather_api_key</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;weather&#39;</span><span class="p">][</span><span class="s1">&#39;apikey&#39;</span><span class="p">]</span>
+
+	<span class="n">res</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_nodes</span><span class="p">(</span><span class="n">nodeid</span><span class="o">=</span><span class="n">nodeid</span><span class="p">)</span>
+	<span class="n">msg</span> <span class="o">=</span> <span class="n">MessageToDict</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+	<span class="k">if</span> <span class="s1">&#39;nodes&#39;</span> <span class="ow">in</span> <span class="n">msg</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="s1">&#39;nodes&#39;</span><span class="p">])</span> <span class="o">&gt;=</span><span class="mi">1</span><span class="p">:</span>
+		<span class="n">coords</span> <span class="o">=</span> <span class="n">MessageToDict</span><span class="p">(</span><span class="n">res</span><span class="p">)[</span><span class="s1">&#39;nodes&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;coords&#39;</span><span class="p">]</span>
+	<span class="k">else</span><span class="p">:</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;node not registered with the orchestrator.&#39;</span><span class="p">)</span>
+		<span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">MessageToDict</span><span class="p">(</span><span class="n">res</span><span class="p">))</span>
+	<span class="n">lat</span><span class="p">,</span> <span class="n">lon</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+
+
+	<span class="n">trigger_module</span> <span class="o">=</span> <span class="n">LeotestTriggerMode</span><span class="p">()</span>
+	<span class="n">dockermon</span> <span class="o">=</span> <span class="n">LeotestDockerNetworkMonitor</span><span class="p">(</span><span class="n">trigger_module</span><span class="p">)</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;init dockermon&#39;</span><span class="p">)</span>
+	<span class="c1"># dockermon.run_async()</span>
+
+	<span class="n">satmon</span> <span class="o">=</span> <span class="n">LeotestSatelliteMonitor</span><span class="p">(</span><span class="n">trigger_module</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">nodeid</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span> <span class="n">ele</span><span class="o">=</span><span class="s1">&#39;0.0&#39;</span><span class="p">)</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;init satmon&#39;</span><span class="p">)</span>
+	<span class="n">satmon</span><span class="o">.</span><span class="n">run_async</span><span class="p">()</span>
+
+	<span class="n">weathermon</span> <span class="o">=</span> <span class="n">LeotestWeatherMonitor</span><span class="p">(</span><span class="n">trigger_module</span><span class="p">,</span> <span class="n">api</span><span class="o">=</span><span class="s2">&quot;https://api.openweathermap.org/data/2.5/weather?lat=</span><span class="si">%s</span><span class="s2">&amp;lon=</span><span class="si">%s</span><span class="s2">&amp;appid=</span><span class="si">%s</span><span class="s2">&amp;units=standard&quot;</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="s2">&quot;51.52132683544218&quot;</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="s2">&quot;-1.7868832746954848&quot;</span><span class="p">,</span> <span class="n">api_key</span><span class="o">=</span><span class="n">weather_api_key</span><span class="p">)</span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;init weathermon&#39;</span><span class="p">)</span>
+	<span class="n">weathermon</span><span class="o">.</span><span class="n">run_async</span><span class="p">()</span>
+
+	<span class="c1"># check if terminal exists </span>
+	<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;check if terminal exists&#39;</span><span class="p">)</span>
+	<span class="n">r</span> <span class="o">=</span> <span class="n">redis</span><span class="o">.</span><span class="n">Redis</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;redis&#39;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="s1">&#39;6379&#39;</span><span class="p">,</span> <span class="n">db</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">decode_responses</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+	<span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+		<span class="n">dish_status</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;starlink-terminal-found&#39;</span><span class="p">)</span>
+		<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;dish_status=</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">dish_status</span><span class="p">)</span>
+		<span class="k">if</span> <span class="ow">not</span> <span class="n">dish_status</span><span class="p">:</span>
+			<span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+			<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;waiting for terminal (dish) status...&#39;</span><span class="p">)</span>
+		<span class="k">else</span><span class="p">:</span>
+			<span class="k">if</span> <span class="n">dish_status</span> <span class="o">==</span> <span class="s1">&#39;True&#39;</span><span class="p">:</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;getting starlink terminal id&#39;</span><span class="p">)</span>
+				<span class="n">utid</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;starlink-terminal-id&#39;</span><span class="p">)</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;starlink terminal found; utid=</span><span class="si">%s</span><span class="s1">; initiating gRPC monitor.&#39;</span> <span class="o">%</span> <span class="n">utid</span><span class="p">)</span>
+
+				<span class="n">grpcmon</span> <span class="o">=</span> <span class="n">LeotestGrpcMonitor</span><span class="p">(</span><span class="n">trigger_module</span><span class="p">,</span> <span class="n">utid</span><span class="p">,</span> 
+							<span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;uplink_throughput_bps&#39;</span><span class="p">,</span> 
+									<span class="s1">&#39;downlink_throughput_bps&#39;</span><span class="p">,</span> 
+									<span class="s1">&#39;pop_ping_latency_ms&#39;</span><span class="p">,</span>
+									<span class="s1">&#39;direction_azimuth&#39;</span><span class="p">,</span>
+									<span class="s1">&#39;direction_elevation&#39;</span><span class="p">,</span>
+									<span class="s1">&#39;currently_obstructed&#39;</span><span class="p">,</span>
+									<span class="s1">&#39;fraction_obstructed&#39;</span><span class="p">])</span>
+				<span class="n">grpcmon</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">run_async</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+			<span class="k">else</span><span class="p">:</span>
+				<span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;no starlink terminal found; skipping init gRPC monitor.&#39;</span><span class="p">)</span>
+			
+			<span class="k">break</span>
+
+	<span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+		<span class="c1"># _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_scheduler, </span>
+		<span class="c1">#        			sessionstore, trigger_module, log)</span>
+		<span class="n">args</span> <span class="o">=</span> <span class="p">(</span><span class="n">nodeid</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">cron_scheduler</span><span class="p">,</span> <span class="n">atq_scheduler</span><span class="p">,</span> <span class="n">task_scheduler</span><span class="p">,</span> 
+		       			<span class="n">sessionstore</span><span class="p">,</span> <span class="n">trigger_module</span><span class="p">,</span> <span class="n">log</span><span class="p">,</span> <span class="p">)</span>
+		<span class="n">p</span> <span class="o">=</span> <span class="n">Process</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">_scheduler_execute</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">)</span>
+		<span class="n">p</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+		<span class="n">p</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span> <span class="c1"># wait 60 seconds for each scheduler invocation</span>
+		<span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_alive</span><span class="p">():</span>
+			<span class="n">p</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+
+		<span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">interval</span><span class="p">)</span></div>
+
+<span class="c1"># print(&#39;--- Test Job ---&#39;)</span>
+<span class="c1"># job_params = {</span>
+<span class="c1">#     &quot;mode&quot;: &quot;docker&quot;,</span>
+<span class="c1">#     &quot;deploy&quot;: &quot;repository=hello-world;tag=latest&quot;,</span>
+<span class="c1">#     &quot;execute&quot;: &quot;image=hello-world&quot;,</span>
+<span class="c1">#     &quot;finish&quot;: &quot;&quot;</span>
+<span class="c1"># }</span>
+
+<span class="c1"># job = LeotestJobCron(jobid=&#39;test_job&#39;, job_params=job_params)</span>
+
+<span class="c1"># print(datetime.now())</span>
+<span class="c1"># print(job.next_trigger_time())</span>
+<span class="c1"># print(job.serialize())</span>
+
+<span class="c1"># print(&#39;--- Test scheduler ---&#39;)</span>
+<span class="c1"># scheduler = LeotestJobSchedulerCron(executor_path=&#39;./executor.py&#39;)</span>
+
+<span class="c1"># jobs = scheduler.get_job_list()</span>
+<span class="c1"># print(&#39;current jobs: &#39;, jobs)</span>
+
+<span class="c1"># print(&#39;adding job&#39;, job)</span>
+<span class="c1"># scheduler.add_job(job)</span>
+
+<span class="c1"># jobs = scheduler.get_job_list()</span>
+<span class="c1"># print(&#39;current jobs: &#39;, jobs)</span>
+<span class="c1"># print(jobs[0].serialize())</span>
+
+<span class="c1"># print(&#39;removing job&#39;)</span>
+<span class="c1"># scheduler.remove_job(job)</span>
+
+<span class="c1"># jobs = scheduler.get_job_list()</span>
+<span class="c1"># print(&#39;current jobs: &#39;, jobs)</span>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Shubham Tiwari, Aryan Taneja, Saksham Bhushan, M. Kassem, Nishanth Sastry, Aravindh Raman, Debopam Bhattacherjee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

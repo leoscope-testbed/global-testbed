@@ -1,0 +1,34 @@
+docker: 
+  image: 'projectleopard/leotest'
+  deploy: 
+  execute:
+    name: "leo-measurement"
+  finish: 
+
+tests:
+  iperf-1:
+    entry_point: "IPerfClient"
+    runner: "iperf"
+    server: "20.25.130.197"
+    port: "5201"
+    congesion_control: "cubic"
+    test_length: "10"
+
+  hping-1:
+    entry_point: "HPingClient"
+    runner: "hping"
+    ip: "netperf-eu.bufferbloat.net"
+    port: 80
+    num_pings: 10
+    test_length: 1200
+    
+  ping-1:
+    entry_point: "PingClient"
+    runner: "ping"
+    ip: 8.8.8.8
+    num_pings: 10
+    test_length: 1200
+
+artifacts:
+  path_local: "/artifacts"
+  # path_local: "/home/leotest/leotest-testbed-v2/job_workdir"

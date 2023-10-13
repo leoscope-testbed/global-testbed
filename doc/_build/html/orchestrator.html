@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>orchestrator package &mdash; LEOScope 00.00.01 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="node package" href="node.html" />
+    <link rel="prev" title="Orchestrator" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LEOScope
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">Orchestrator</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">orchestrator package</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-orchestrator.datastore">orchestrator.datastore module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-orchestrator.orchestrator">orchestrator.orchestrator module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#module-orchestrator">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html#node">Node</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html#common">Common</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html#cli">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="modules.html#services">Services</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LEOScope</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="modules.html">Orchestrator</a></li>
+      <li class="breadcrumb-item active">orchestrator package</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/orchestrator.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="orchestrator-package">
+<h1>orchestrator package<a class="headerlink" href="#orchestrator-package" title="Permalink to this heading"></a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this heading"></a></h2>
+</section>
+<section id="module-orchestrator.datastore">
+<span id="orchestrator-datastore-module"></span><h2>orchestrator.datastore module<a class="headerlink" href="#module-orchestrator.datastore" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">orchestrator.datastore.</span></span><span class="sig-name descname"><span class="pre">LeotestDatastoreMongo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">server</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">port</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">27017</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">database</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'leotest'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_access_token</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'leotest-access-token'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.add_job">
+<span class="sig-name descname"><span class="pre">add_job</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">job</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestJob</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.add_job"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.add_job" title="Permalink to this definition"></a></dt>
+<dd><p>add a job</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.add_user">
+<span class="sig-name descname"><span class="pre">add_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestUser</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.add_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.add_user" title="Permalink to this definition"></a></dt>
+<dd><p>register user on leotest</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.delete_job_by_id">
+<span class="sig-name descname"><span class="pre">delete_job_by_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.delete_job_by_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.delete_job_by_id" title="Permalink to this definition"></a></dt>
+<dd><p>delete a job on Leotest</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.delete_jobs_by_nodeid">
+<span class="sig-name descname"><span class="pre">delete_jobs_by_nodeid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.delete_jobs_by_nodeid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.delete_jobs_by_nodeid" title="Permalink to this definition"></a></dt>
+<dd><p>delete all jobs on a given node</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.delete_node">
+<span class="sig-name descname"><span class="pre">delete_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delete_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.delete_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.delete_node" title="Permalink to this definition"></a></dt>
+<dd><p>delete a node</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.delete_user">
+<span class="sig-name descname"><span class="pre">delete_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestUser</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.delete_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.delete_user" title="Permalink to this definition"></a></dt>
+<dd><p>delete a user on Leotest</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_config">
+<span class="sig-name descname"><span class="pre">get_config</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_config" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_job_by_id">
+<span class="sig-name descname"><span class="pre">get_job_by_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_job_by_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_job_by_id" title="Permalink to this definition"></a></dt>
+<dd><p>get a specific job using jobid</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_jobs_by_nodeid">
+<span class="sig-name descname"><span class="pre">get_jobs_by_nodeid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">LeotestJob</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_jobs_by_nodeid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_jobs_by_nodeid" title="Permalink to this definition"></a></dt>
+<dd><p>get list of jobs scheduled on a given node</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_jobs_by_userid">
+<span class="sig-name descname"><span class="pre">get_jobs_by_userid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">userid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_jobs_by_userid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_jobs_by_userid" title="Permalink to this definition"></a></dt>
+<dd><p>get a specific job using userid</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_nodes">
+<span class="sig-name descname"><span class="pre">get_nodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">active</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activeThres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">600</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_nodes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_nodes" title="Permalink to this definition"></a></dt>
+<dd><p>get nodes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_runs">
+<span class="sig-name descname"><span class="pre">get_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">runid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">userid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_range</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_runs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_runs" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_scavenger_status">
+<span class="sig-name descname"><span class="pre">get_scavenger_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_scavenger_status"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_scavenger_status" title="Permalink to this definition"></a></dt>
+<dd><p>get nodes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_tasks">
+<span class="sig-name descname"><span class="pre">get_tasks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">taskid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">runid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jobid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nodeid</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_tasks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_tasks" title="Permalink to this definition"></a></dt>
+<dd><p>get tasks</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.get_user">
+<span class="sig-name descname"><span class="pre">get_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">userid</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">LeotestUser</span></span></span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.get_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.get_user" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.mark_node">
+<span class="sig-name descname"><span class="pre">mark_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.mark_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.mark_node" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.modify_job">
+<span class="sig-name descname"><span class="pre">modify_job</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">job</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestJob</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.modify_job"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.modify_job" title="Permalink to this definition"></a></dt>
+<dd><p>modify job on Leotest</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.modify_user">
+<span class="sig-name descname"><span class="pre">modify_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestUser</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.modify_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.modify_user" title="Permalink to this definition"></a></dt>
+<dd><p>modify user on Leotest</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.register_node">
+<span class="sig-name descname"><span class="pre">register_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">node</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestNode</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.register_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.register_node" title="Permalink to this definition"></a></dt>
+<dd><p>register a node</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.schedule_task">
+<span class="sig-name descname"><span class="pre">schedule_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">task</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestTask</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.schedule_task"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.schedule_task" title="Permalink to this definition"></a></dt>
+<dd><p>schedule task</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.set_scavenger_status">
+<span class="sig-name descname"><span class="pre">set_scavenger_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scavenger_mode_status</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.set_scavenger_status"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.set_scavenger_status" title="Permalink to this definition"></a></dt>
+<dd><p>update a jobs start_time given jobid</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.update_config">
+<span class="sig-name descname"><span class="pre">update_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.update_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.update_config" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.update_job_date">
+<span class="sig-name descname"><span class="pre">update_job_date</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jobid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_date</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_date</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.update_job_date"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.update_job_date" title="Permalink to this definition"></a></dt>
+<dd><p>update a jobs start_time given jobid</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.update_node">
+<span class="sig-name descname"><span class="pre">update_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nodeid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">description</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">last_active</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coords</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">public_ip</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.update_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.update_node" title="Permalink to this definition"></a></dt>
+<dd><p>update node</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.update_run">
+<span class="sig-name descname"><span class="pre">update_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">run</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">LeotestRun</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.update_run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.update_run" title="Permalink to this definition"></a></dt>
+<dd><p>add/update run on Leotest</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.datastore.LeotestDatastoreMongo.update_task">
+<span class="sig-name descname"><span class="pre">update_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">taskid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">status</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/datastore.html#LeotestDatastoreMongo.update_task"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.datastore.LeotestDatastoreMongo.update_task" title="Permalink to this definition"></a></dt>
+<dd><p>update task</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-orchestrator.orchestrator">
+<span id="orchestrator-orchestrator-module"></span><h2>orchestrator.orchestrator module<a class="headerlink" href="#module-orchestrator.orchestrator" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.CheckToken">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">orchestrator.orchestrator.</span></span><span class="sig-name descname"><span class="pre">CheckToken</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">empty_response_cls</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grpc_status_code</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">grpc.StatusCode.UNAUTHENTICATED</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grpc_details</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#CheckToken"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.CheckToken" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Decorator that parses the gRPC headers to fetch the acces token (either
+the static access token or the JWT token). Thereafter, it verifies whether
+the access token is valid or not. If it is valid, it sets the <code class="docutils literal notranslate"><span class="pre">userid</span></code> and
+the <code class="docutils literal notranslate"><span class="pre">role</span></code> (after fetching it from the datastore) in the gRPC context. If the
+access token verification fails, it raises an <code class="docutils literal notranslate"><span class="pre">UNAUTHENTICATED</span></code> status code.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestrator">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">orchestrator.orchestrator.</span></span><span class="sig-name descname"><span class="pre">LeotestOrchestrator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grpc_hostname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grpc_port</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50051</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_access_token</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jwt_secret</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jwt_algo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grpc_max_workers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_server</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_port</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">27017</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'leotest'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestrator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestrator" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Wrapper class that bootstraps the gRPC service of the
+LEOScope’s orchestartor.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestrator.start">
+<span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestrator.start"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestrator.start" title="Permalink to this definition"></a></dt>
+<dd><p>Wrapper around <a class="reference internal" href="#orchestrator.orchestrator.LeotestOrchestrator.start_grpc_service" title="orchestrator.orchestrator.LeotestOrchestrator.start_grpc_service"><code class="xref py py-meth docutils literal notranslate"><span class="pre">LeotestOrchestrator.start_grpc_service()</span></code></a></p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestrator.start_grpc_service">
+<span class="sig-name descname"><span class="pre">start_grpc_service</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestrator.start_grpc_service"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestrator.start_grpc_service" title="Permalink to this definition"></a></dt>
+<dd><p>Bootsraps the gRPC service of the orchestartor.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">orchestrator.orchestrator.</span></span><span class="sig-name descname"><span class="pre">LeotestOrchestratorGrpc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">db_server</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'localhost'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_port</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">27017</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'leotest'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">admin_access_token</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'leotest-access-token'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jwt_secret</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">jwt_algo</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">LeotestOrchestrator</span></code></p>
+<p>Implementation of the gRPC service exposed by the orchestrator. The class
+implements all the rpc’s defined in the <cite>common/leotest.proto</cite> protocol
+definition. Incoming rpc requests are verified by <a class="reference internal" href="#orchestrator.orchestrator.CheckToken" title="orchestrator.orchestrator.CheckToken"><code class="xref py py-class docutils literal notranslate"><span class="pre">CheckToken</span></code></a>
+before being invoked.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>db_server</strong> (<em>str</em><em>, </em><em>optional</em>) – Hostname of the MongoDB database server, defaults to ‘localhost’</p></li>
+<li><p><strong>db_port</strong> (<em>int</em><em>, </em><em>optional</em>) – Port number of the MongoDB database server, defaults to 27017</p></li>
+<li><p><strong>db_name</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of the database, defaults to ‘leotest’</p></li>
+<li><p><strong>admin_access_token</strong> (<em>str</em><em>, </em><em>optional</em>) – Static access token to use to initialize the
+<cite>admin</cite> username, defaults to ‘leotest-access-token’</p></li>
+<li><p><strong>jwt_secret</strong> (<em>str</em><em>, </em><em>optional</em>) – JWT secret to use for authenticating the gRPC requests, defaults to ‘’</p></li>
+<li><p><strong>jwt_algo</strong> (<em>str</em><em>, </em><em>optional</em>) – JWT algorithm to use for authenticating the gRPC requests, defaults to ‘’</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_job_by_id">
+<span class="sig-name descname"><span class="pre">delete_job_by_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.delete_job_by_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_job_by_id" title="Permalink to this definition"></a></dt>
+<dd><p>Delete a given job using jobid. Only users with role <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> and the
+user who owns the job can delete a job.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_delete_job_by_id</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">delete_job_by_id</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the job with the given <code class="docutils literal notranslate"><span class="pre">jobid</span></code> exists, the job is deleted
+and <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code>. If the job does not exist,
+<code class="docutils literal notranslate"><span class="pre">exists</span></code> is set to <code class="docutils literal notranslate"><span class="pre">False</span></code>. In all cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> contains
+the detailed message about the result of the request.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_delete_job_by_id_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_jobs_by_nodeid">
+<span class="sig-name descname"><span class="pre">delete_jobs_by_nodeid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.delete_jobs_by_nodeid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_jobs_by_nodeid" title="Permalink to this definition"></a></dt>
+<dd><p>Delete all jobs on a given nodeid. Only users with role <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> can
+delete all jobs on a node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.delete_jobs_by_nodeid</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">delete_jobs_by_nodeid</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">num_deleted</span></code> contains the number of jobs deleted. <code class="docutils literal notranslate"><span class="pre">message</span></code>
+contains a message with detailed information about the status of the
+request.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_delete_job_by_id_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_node">
+<span class="sig-name descname"><span class="pre">delete_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.delete_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_node" title="Permalink to this definition"></a></dt>
+<dd><p>Delete a node with a given <code class="docutils literal notranslate"><span class="pre">nodeid</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_delete_node</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">delete_node</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>, otherwise
+it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> contains details
+about the status of the request.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_delete_node_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_user">
+<span class="sig-name descname"><span class="pre">delete_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.delete_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.delete_user" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_global_config">
+<span class="sig-name descname"><span class="pre">get_global_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_global_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_global_config" title="Permalink to this definition"></a></dt>
+<dd><p>Get global configuration for the testbed.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_global_config</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_global_config</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Returns the global config of the testbed.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_global_config_response</span></code></p>
+</dd>
+</dl>
+<div class="admonition-todo admonition" id="id1">
+<p class="admonition-title">Todo</p>
+<p>Allow only users with <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> or <code class="docutils literal notranslate"><span class="pre">NODE</span></code> role to access the rpc</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_job_by_id">
+<span class="sig-name descname"><span class="pre">get_job_by_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_job_by_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_job_by_id" title="Permalink to this definition"></a></dt>
+<dd><p>Get job with a given <code class="docutils literal notranslate"><span class="pre">jobid</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_modify_user</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">modify_user</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the user with the given <code class="docutils literal notranslate"><span class="pre">userid</span></code> exists, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">1</span></code> else it is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>. In both cases <code class="docutils literal notranslate"><span class="pre">message</span></code> contains
+detailed information about the result.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_modify_user_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_jobs_by_nodeid">
+<span class="sig-name descname"><span class="pre">get_jobs_by_nodeid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_jobs_by_nodeid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_jobs_by_nodeid" title="Permalink to this definition"></a></dt>
+<dd><p>Get jobs scheduled on a given node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_jobs_by_nodeid</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_jobs_by_nodeid</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the node with the given <code class="docutils literal notranslate"><span class="pre">nodeid</span></code> exists, <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">True</span></code> and <code class="docutils literal notranslate"><span class="pre">jobs</span></code> contains the list of all jobs scheduled
+on the node. If the node does not exist, <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set to
+<code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_jobs_by_nodeid_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_jobs_by_userid">
+<span class="sig-name descname"><span class="pre">get_jobs_by_userid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_jobs_by_userid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_jobs_by_userid" title="Permalink to this definition"></a></dt>
+<dd><p>Get jobs scheduled by a given user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_jobs_by_userid</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_jobs_by_userid</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the user with the given <code class="docutils literal notranslate"><span class="pre">userid</span></code> exists, <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">True</span></code> and <code class="docutils literal notranslate"><span class="pre">jobs</span></code> contains the list of all jobs scheduled
+by the user. If the user does not exist, <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set to
+<code class="docutils literal notranslate"><span class="pre">False</span></code>. In both cases <code class="docutils literal notranslate"><span class="pre">message</span></code> contains detailed information
+about the result.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_jobs_by_userid_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_nodes">
+<span class="sig-name descname"><span class="pre">get_nodes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_nodes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_nodes" title="Permalink to this definition"></a></dt>
+<dd><p>Get a list of nodes after filtering them on certain parameters.
+All parameters are optional. When multiple parameters are specified,
+a combination of them is used to filter the nodes. The supported
+parameters are: <code class="docutils literal notranslate"><span class="pre">nodeid</span></code>, <code class="docutils literal notranslate"><span class="pre">location</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">provider</span></code>,
+<code class="docutils literal notranslate"><span class="pre">active</span></code>, <code class="docutils literal notranslate"><span class="pre">activeThres</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_nodes</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_nodes</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">nodes</span></code> contains a list of all the filtered nodes.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_nodes_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_runs">
+<span class="sig-name descname"><span class="pre">get_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_runs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_runs" title="Permalink to this definition"></a></dt>
+<dd><p>Get a list of runs after filtering them on certain parameters. The
+list of paramaters currently accepted are: <code class="docutils literal notranslate"><span class="pre">runid</span></code>, <code class="docutils literal notranslate"><span class="pre">jobid</span></code>, <code class="docutils literal notranslate"><span class="pre">nodeid</span></code>,
+<code class="docutils literal notranslate"><span class="pre">userid</span></code>, <code class="docutils literal notranslate"><span class="pre">time_range</span></code>, <code class="docutils literal notranslate"><span class="pre">limit</span></code>.</p>
+<p>All the parameters are optional. Client can specify one or more of the
+parameters. If more than one parameters are provided, then a combination
+of them is used to filter the runs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_runs</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_runs</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">runs</span></code> contains the list of
+all runs.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_runs_response</span></code></p>
+</dd>
+</dl>
+<div class="admonition-todo admonition" id="id2">
+<p class="admonition-title">Todo</p>
+<p>Allow only users with role <code class="docutils literal notranslate"><span class="pre">NODE</span></code> to be able to update run status.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_scavenger_status">
+<span class="sig-name descname"><span class="pre">get_scavenger_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_scavenger_status"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_scavenger_status" title="Permalink to this definition"></a></dt>
+<dd><p>Get scavenger status (whether <code class="docutils literal notranslate"><span class="pre">Active</span></code> or <code class="docutils literal notranslate"><span class="pre">Inactive</span></code>) for a node.
+Only a user with role <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> and the user with <code class="docutils literal notranslate"><span class="pre">userid==nodeid</span></code> are
+allowed to invoke the rpc.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_scavenger_status</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_scavenger_status</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tf the node is found, <code class="docutils literal notranslate"><span class="pre">found</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code> and
+<code class="docutils literal notranslate"><span class="pre">scavenger_mode_active</span></code> is set to the status of the scavenger mode
+of the node. If scavenger mode is active, <code class="docutils literal notranslate"><span class="pre">scavenger_mode_active=True</span></code>,
+otherwise <code class="docutils literal notranslate"><span class="pre">scavenger_mode_active=False</span></code>. If the node is not found,
+<code class="docutils literal notranslate"><span class="pre">found=False</span></code> and <code class="docutils literal notranslate"><span class="pre">scavenger_mode_active</span></code> is undefined.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_scavenger_status_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_scheduled_runs">
+<span class="sig-name descname"><span class="pre">get_scheduled_runs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_scheduled_runs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_scheduled_runs" title="Permalink to this definition"></a></dt>
+<dd><p>Get a list of runs scheduled in a specific time range in future.
+This rpc returns a list of runs (or <code class="docutils literal notranslate"><span class="pre">events</span></code>) in the format that can
+be used with the react’s fullCalender API. As such, it helps to populate
+the calender in the web UI for a better visualization of available
+time slots for job scheduling.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_scheduled_runs</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_scheduled_runs</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>, otherwise
+it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> contains details
+about the status of the request. When the request is successful,
+<code class="docutils literal notranslate"><span class="pre">events</span></code> caontains the list of all the events in the specified
+time range.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_scheduled_runs_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_tasks">
+<span class="sig-name descname"><span class="pre">get_tasks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_tasks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_tasks" title="Permalink to this definition"></a></dt>
+<dd><p>Get tasks after filtering them on certain parameters. The parameters
+that can be specified are: <code class="docutils literal notranslate"><span class="pre">taskid</span></code>, <code class="docutils literal notranslate"><span class="pre">runid</span></code>, <code class="docutils literal notranslate"><span class="pre">jobid</span></code>, <code class="docutils literal notranslate"><span class="pre">nodeid</span></code>.
+All parameters are optional.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_tasks</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_tasks</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">tasks</span></code> contains the lists of
+tasks</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_tasks_response</span></code></p>
+</dd>
+</dl>
+<div class="admonition-todo admonition" id="id3">
+<p class="admonition-title">Todo</p>
+<p>Allow only users with role <code class="docutils literal notranslate"><span class="pre">NODE</span></code> to be able to get tasks.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.get_user">
+<span class="sig-name descname"><span class="pre">get_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.get_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.get_user" title="Permalink to this definition"></a></dt>
+<dd><p>Get a user with a given <code class="docutils literal notranslate"><span class="pre">userid</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_user</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_user</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the user with the given <code class="docutils literal notranslate"><span class="pre">userid</span></code> exists, <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">True</span></code> and the message contains user information such as
+<code class="docutils literal notranslate"><span class="pre">userid</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">role</span></code>, <code class="docutils literal notranslate"><span class="pre">team</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_user_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.kernel_access">
+<span class="sig-name descname"><span class="pre">kernel_access</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.kernel_access"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.kernel_access" title="Permalink to this definition"></a></dt>
+<dd><p>Verify whether a userid has access to kernel services. This rpc
+is invoked by the kernel service running on the nodes to verify if the
+user who scheduled the job has privileges to modify/reconfigure kernel
+configuration. Usually users with roles <code class="docutils literal notranslate"><span class="pre">USER_PRIV</span></code>, <code class="docutils literal notranslate"><span class="pre">NODE_PRIV</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> have access to kernel service. Only users with roles <code class="docutils literal notranslate"><span class="pre">NODE</span></code> and
+<code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> hare allowed to invoke the rpc.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_kernel_access</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">kernel_access</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>, otherwise
+it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> contains details
+about the status of the request.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_kernel_access_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.modify_job">
+<span class="sig-name descname"><span class="pre">modify_job</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.modify_job"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.modify_job" title="Permalink to this definition"></a></dt>
+<dd><p>Modify an existing job.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_jobs_by_nodeid</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">modify_job</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the node with the given <code class="docutils literal notranslate"><span class="pre">nodeid</span></code> exists, <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">True</span></code> and <code class="docutils literal notranslate"><span class="pre">jobs</span></code> contains the list of all jobs scheduled
+on the node. If the node does not exist, <code class="docutils literal notranslate"><span class="pre">exists</span></code> is set to
+<code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_get_jobs_by_nodeid_response</span></code></p>
+</dd>
+</dl>
+<div class="admonition-todo admonition" id="id4">
+<p class="admonition-title">Todo</p>
+<p>Implement the rpc. Only allow users with role <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> and the owners
+of the job to modify a job.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.modify_user">
+<span class="sig-name descname"><span class="pre">modify_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.modify_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.modify_user" title="Permalink to this definition"></a></dt>
+<dd><p>Modify a user with a given <code class="docutils literal notranslate"><span class="pre">userid</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_modify_user</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">modify_user</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the user with the given <code class="docutils literal notranslate"><span class="pre">userid</span></code> exists, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">1</span></code> else it is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>. In both cases <code class="docutils literal notranslate"><span class="pre">message</span></code> contains
+detailed information about the result.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_modify_user_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.register_node">
+<span class="sig-name descname"><span class="pre">register_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.register_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.register_node" title="Permalink to this definition"></a></dt>
+<dd><p>Register a node on LEOScope. Only a user with role <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> can
+register a node.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_register_node</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">register_node</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">state</span></code> si set to <code class="docutils literal notranslate"><span class="pre">0</span></code>, otherwise
+it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> contains details
+about the status of the request.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_register_node_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.register_user">
+<span class="sig-name descname"><span class="pre">register_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.register_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.register_user" title="Permalink to this definition"></a></dt>
+<dd><p>Register a user on LEOScope. Only users with <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> role can
+register a user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_register_user</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">register_user</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Returns a response message consisting of <code class="docutils literal notranslate"><span class="pre">state</span></code> and <code class="docutils literal notranslate"><span class="pre">message</span></code>.
+<code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">0</span></code> if the request has succeeded, else <code class="docutils literal notranslate"><span class="pre">1</span></code>.
+<code class="docutils literal notranslate"><span class="pre">message</span></code> contains the detailed message in all cases.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_register_user_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.report_heartbeat">
+<span class="sig-name descname"><span class="pre">report_heartbeat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.report_heartbeat"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.report_heartbeat" title="Permalink to this definition"></a></dt>
+<dd><p>RPC routine to register a heartbeat with the orchestrator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_heartbeat</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">report_heartbeat</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">received</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code> if successful else <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_heartbeat_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.reschedule_job_nearest">
+<span class="sig-name descname"><span class="pre">reschedule_job_nearest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.reschedule_job_nearest"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.reschedule_job_nearest" title="Permalink to this definition"></a></dt>
+<dd><p>Reschedule a job to the nearest empty slot. The rpc receives
+a <code class="docutils literal notranslate"><span class="pre">jobid</span></code> and a <code class="docutils literal notranslate"><span class="pre">start_time</span></code> and an <code class="docutils literal notranslate"><span class="pre">end_time</span></code> and searchers for
+the nearest empty slot that is large enough for the job to “fit”, that is,
+the time length of the free slot is greater than or equal to the job
+length.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_reschedule_job</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">reschedule_job_nearest</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the job has been rescheduled, <code class="docutils literal notranslate"><span class="pre">rescheduled</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">0</span></code> else it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases <code class="docutils literal notranslate"><span class="pre">message</span></code> contains
+detailed information about the result.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_reschedule_job_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.schedule_job">
+<span class="sig-name descname"><span class="pre">schedule_job</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.schedule_job"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.schedule_job" title="Permalink to this definition"></a></dt>
+<dd><dl class="simple">
+<dt>Schedule on a job LEOScope. The RPC call has the following flow:</dt><dd><ul class="simple">
+<li><p>Verify if there a conflict with the existing jobs on the <code class="docutils literal notranslate"><span class="pre">nodeid</span></code>.</p></li>
+<li><dl class="simple">
+<dt>If <code class="docutils literal notranslate"><span class="pre">server</span></code> is specified, verify if there is a conflict with</dt><dd><p>existing jobs on <code class="docutils literal notranslate"><span class="pre">server</span></code>.</p>
+</dd>
+</dl>
+</li>
+<li><p>If trigger is specified, verify the trigger syntax.</p></li>
+<li><p>If all is good, write the job schedule to the database.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_schedule_job</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">schedule_job</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the job is scheduled successfully, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set
+to <code class="docutils literal notranslate"><span class="pre">0</span></code> else it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases <code class="docutils literal notranslate"><span class="pre">message</span></code> contains
+detailed information about the result.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_schedule_job_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.schedule_task">
+<span class="sig-name descname"><span class="pre">schedule_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.schedule_task"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.schedule_task" title="Permalink to this definition"></a></dt>
+<dd><p>Schedule a task on a node. This rpc is not to be exposed to the user
+and is only used internally by the testbed. An example scenario is setting
+up a server for jobs that require a receiver that is located on another
+node that is a part of the testbed. In such a scenario, the client node
+schedules a task on the node with <code class="docutils literal notranslate"><span class="pre">nodeid==job.server</span></code> and polls it to
+check if the server has been deployed or not.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_schedule_task</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">schedule_task</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tf the node is found, <code class="docutils literal notranslate"><span class="pre">found</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code> and
+<code class="docutils literal notranslate"><span class="pre">scavenger_mode_active</span></code> is set to the status of the scavenger mode
+of the node. If scavenger mode is active, <code class="docutils literal notranslate"><span class="pre">scavenger_mode_active=True</span></code>,
+otherwise <code class="docutils literal notranslate"><span class="pre">scavenger_mode_active=False</span></code>. If the node is not found,
+<code class="docutils literal notranslate"><span class="pre">found=False</span></code> and <code class="docutils literal notranslate"><span class="pre">scavenger_mode_active</span></code> is undefined</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_schedule_task_response</span></code></p>
+</dd>
+</dl>
+<div class="admonition-todo admonition" id="id5">
+<p class="admonition-title">Todo</p>
+<p>Allow only users with role <code class="docutils literal notranslate"><span class="pre">NODE</span></code> to be able to schedule tasks.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.set_scavenger_status">
+<span class="sig-name descname"><span class="pre">set_scavenger_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.set_scavenger_status"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.set_scavenger_status" title="Permalink to this definition"></a></dt>
+<dd><p>Set scavenger status (whether <code class="docutils literal notranslate"><span class="pre">True</span></code> or <code class="docutils literal notranslate"><span class="pre">Fasle</span></code>) for a node.
+Only a user with role <code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> and the user with <code class="docutils literal notranslate"><span class="pre">userid==nodeid</span></code> are
+allowed to invoke the rpc.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_set_scavenger_status</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">set_scavenger_status</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>, otherwise
+it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> contains details
+about the status of the request.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_set_scavenger_status_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.update_global_config">
+<span class="sig-name descname"><span class="pre">update_global_config</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.update_global_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.update_global_config" title="Permalink to this definition"></a></dt>
+<dd><p>Update global configuration for the testbed. Only users with an
+<code class="docutils literal notranslate"><span class="pre">ADMIN</span></code> role can invoke the RPC. For users having roles other than
+<code class="docutils literal notranslate"><span class="pre">ADMIN</span></code>, the config is not updated and the <code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>
+in the response message.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_update_global_config</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">update_global_config</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Response indicating response state and a detailed message.
+<code class="docutils literal notranslate"><span class="pre">state==0</span></code> implies that the request is successful. <code class="docutils literal notranslate"><span class="pre">state==1</span></code> implies
+that there was some error encountered while processing the request.
+<code class="docutils literal notranslate"><span class="pre">message</span></code> field contains a detailed message in all cases.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_update_global_config_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.update_node">
+<span class="sig-name descname"><span class="pre">update_node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.update_node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.update_node" title="Permalink to this definition"></a></dt>
+<dd><p>Get a list of nodes after filtering them on certain parameters.
+All parameters are optional. When multiple parameters are specified,
+a combination of them is used to filter the nodes. The supported
+parameters are: <code class="docutils literal notranslate"><span class="pre">nodeid</span></code>, <code class="docutils literal notranslate"><span class="pre">location</span></code>, <code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">provider</span></code>,
+<code class="docutils literal notranslate"><span class="pre">active</span></code>, <code class="docutils literal notranslate"><span class="pre">activeThres</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_update_node</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">get_nodes</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">nodes</span></code> contains a list of all the filtered nodes.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_update_node_response</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.update_run">
+<span class="sig-name descname"><span class="pre">update_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.update_run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.update_run" title="Permalink to this definition"></a></dt>
+<dd><p>Update run status.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.update_run</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">update_run</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If update is successful <code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>, otherwise
+<code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> conatins the detailed information
+about the status of the request.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_delete_job_by_id_response</span></code></p>
+</dd>
+</dl>
+<div class="admonition-todo admonition" id="id6">
+<p class="admonition-title">Todo</p>
+<p>Allow only users with role <code class="docutils literal notranslate"><span class="pre">NODE</span></code> to be able to update run status.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.update_task">
+<span class="sig-name descname"><span class="pre">update_task</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.update_task"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.update_task" title="Permalink to this definition"></a></dt>
+<dd><p>Update task status.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> (<code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_update_task</span></code>) – gRPC request message for <code class="docutils literal notranslate"><span class="pre">update_task</span></code></p></li>
+<li><p><strong>context</strong> (<em>Refer to gRPC documentation</em>) – gRPC context</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the request is successful, <code class="docutils literal notranslate"><span class="pre">state</span></code> is set to <code class="docutils literal notranslate"><span class="pre">0</span></code>, otherwise
+it is set to <code class="docutils literal notranslate"><span class="pre">1</span></code>. In both cases, <code class="docutils literal notranslate"><span class="pre">message</span></code> contains details
+about the status of the request</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><code class="xref py py-class docutils literal notranslate"><span class="pre">pb2.message_update_task_response</span></code></p>
+</dd>
+</dl>
+<div class="admonition-todo admonition" id="id7">
+<p class="admonition-title">Todo</p>
+<p>Allow only users with role <code class="docutils literal notranslate"><span class="pre">NODE</span></code> to be able to update tasks.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.verify_jwt">
+<span class="sig-name descname"><span class="pre">verify_jwt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jwt_access_token</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.verify_jwt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.verify_jwt" title="Permalink to this definition"></a></dt>
+<dd><p>Given JWT access token, verify the token and get <code class="docutils literal notranslate"><span class="pre">userid</span></code>, <code class="docutils literal notranslate"><span class="pre">role</span></code></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>jwt_access_token</strong> (<em>str</em>) – JWT access token</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Returns userid and user role</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>(str, <code class="xref py py-class docutils literal notranslate"><span class="pre">LeotestUserRoles</span></code>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="orchestrator.orchestrator.LeotestOrchestratorGrpc.verify_user">
+<span class="sig-name descname"><span class="pre">verify_user</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">userid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">access_token</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/orchestrator/orchestrator.html#LeotestOrchestratorGrpc.verify_user"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#orchestrator.orchestrator.LeotestOrchestratorGrpc.verify_user" title="Permalink to this definition"></a></dt>
+<dd><p>Given <code class="docutils literal notranslate"><span class="pre">userid</span></code> and <code class="docutils literal notranslate"><span class="pre">access_token</span></code> verify and return the user role.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>userid</strong> (<em>str</em>) – Userid</p></li>
+<li><p><strong>access_token</strong> (<em>str</em>) – The access token, either static access token or
+JWT access token</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>If the access token is valid, return the user role, else None</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int or None</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-orchestrator">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-orchestrator" title="Permalink to this heading"></a></h2>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="modules.html" class="btn btn-neutral float-left" title="Orchestrator" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="node.html" class="btn btn-neutral float-right" title="node package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Shubham Tiwari, Aryan Taneja, Saksham Bhushan, M. Kassem, Nishanth Sastry, Aravindh Raman, Debopam Bhattacherjee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
