@@ -45,7 +45,7 @@ def get_event_list_from_job_list(jobs, start, end):
                         'length': int(job['length']),
                         'overhead': job['overhead'],
                         'trigger': job['trigger'],
-						'server': job['server']
+                        'server': job['server']
                     }
                     i=i+1
                     runs.append(run)
@@ -61,7 +61,7 @@ def get_event_list_from_job_list(jobs, start, end):
                     'length': int(job['length']),
                     'overhead': job['overhead'],
                     'trigger': job['trigger'],
-					'server': job['server']
+                    'server': job['server']
                 }
                 i=i+1
                 runs.append(run)

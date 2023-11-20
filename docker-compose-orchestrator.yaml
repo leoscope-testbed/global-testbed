@@ -6,14 +6,14 @@ services:
       dockerfile: "docker/orchestrator/Dockerfile"
     image: "leotest-orchestrator"
     command: 
-      - "--grpc-hostname=0.0.0.0"
+      - "--grpc-hostname=localhost"
       - "--grpc-port=50051"
       - "--grpc-workers=10"
       - "--db-server=datastore"
       - "--db-port=27017"
       - "--db-name=leotest"
-      - "--admin-access-token=<Access-Token>"
-      - "--jwt-secret=<jwt-secret>"
+      - "--admin-access-token=leotest-access-token"
+      - "--jwt-secret=leotest-access-token"
       - "--jwt-algo=HS256"
     ports:
       - "50051:50051"

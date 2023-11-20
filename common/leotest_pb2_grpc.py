@@ -6,7 +6,8 @@ from common import leotest_pb2 as common_dot_leotest__pb2
 
 
 class LeotestOrchestratorStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """The main gRPC service that runs in the orchestrator. 
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -157,7 +158,8 @@ class LeotestOrchestratorStub(object):
 
 
 class LeotestOrchestratorServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """The main gRPC service that runs in the orchestrator. 
+    """
 
     def report_heartbeat(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -486,7 +488,8 @@ def add_LeotestOrchestratorServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class LeotestOrchestrator(object):
-    """Missing associated documentation comment in .proto file."""
+    """The main gRPC service that runs in the orchestrator. 
+    """
 
     @staticmethod
     def report_heartbeat(request,
