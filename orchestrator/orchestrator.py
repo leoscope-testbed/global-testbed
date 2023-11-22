@@ -1742,6 +1742,7 @@ class LeotestOrchestrator:
         server_credentials = grpc.ssl_server_credentials(((private_key, certificate_chain,),))
         grpc_service.add_secure_port('[::]:50051', server_credentials)
         grpc_service.start()
+        log.info("grpc service waiting for termination")
         grpc_service.wait_for_termination()
     
     

@@ -67,6 +67,7 @@ class LeotestClient:
                 retry=retry_if_exception_type((grpc.RpcError)),
                 after=after_attempt)
         else:
+            log.info("Retrying ..")
             return Retrying(
                 wait=wait_fixed(self.conn_retry_wait),
                 retry=retry_if_exception_type((grpc.RpcError)),
@@ -133,6 +134,7 @@ class LeotestClient:
             with attempt:
                 log.info('sending request to get global config')
                 message = pb2.message_get_global_config()
+                log.info("Received info : %s" %(message))
                 return self.grpc_stub.get_global_config(message, timeout=self.timeout)
 
     def register_user(self, id, name, role, team):

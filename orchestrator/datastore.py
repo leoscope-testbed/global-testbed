@@ -78,6 +78,7 @@ class LeotestDatastoreMongo:
 
     def get_config(self):
         with self.client.start_session() as session:
+            print("Getting config")
             config = self._config.find_one({"id": 0}, 
                                         session=session)
         return (0, config)
