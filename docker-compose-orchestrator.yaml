@@ -12,9 +12,9 @@ services:
       - "--db-server=datastore"
       - "--db-port=27017"
       - "--db-name=leotest"
-      - "--admin-access-token=<Access-Token>"
-      - "--jwt-secret=<jwt-secret>"
-      - "--jwt-algo=HS256"
+      - "--admin-access-token=temp"
+      - "--jwt-secret=temp"
+      - "--jwt-algo=temp"
     ports:
       - "50051:50051"
     

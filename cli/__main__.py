@@ -8,7 +8,7 @@ def main():
 	parser = argparse.ArgumentParser(description='Leotest command line interface.')
 
 	parser.add_argument("--grpc-host", type=str, required=False, 
-											default='20.25.130.197',
+											default='20.168.9.14',
 											help='gRPC host')
 
 	parser.add_argument("--grpc-port", type=str, required=False, 

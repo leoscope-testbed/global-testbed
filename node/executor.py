@@ -574,7 +574,16 @@ def main():
 	print(config)
 	connection_string = config['datastore']['blob']['connectionString']
 	container = config['datastore']['blob']['container']
-
+ 
+	#possible change here as well for exp specific cloud 
+	# res2 = client.get_job_by_id(jobid)
+	# exp_args_from_orch = MessageToDict(res2)
+	# exp_config = exp_args_from_orch['config']
+	# #possibly write to yaml and safe load to act like dictionary
+	# connection_string = exp_config["cloud_config"]["connection_string"]
+	# container = exp_config["cloud_config"]["container"] 
+	
+ 
 	server_ip = None 
 	# if server has to be setup, fetch public_ip of the server 
 	if args.setup_server and args.server_node:
@@ -787,7 +796,11 @@ def main():
 			executor_config_dict = yaml.safe_load(stream)
 		except yaml.YAMLError as exc:
 			print(exc)
-	
+   
+	#experiment specific cloud storage account
+	connection_string = experiment_config_dict["cloud_config"]["connection_string"]
+	container = experiment_config_dict["cloud_config"]["container"]
+
 	
 	params = {
 		'server_mode': args.server,
