@@ -507,7 +507,7 @@ table.hlist td {
 /* -- object description styles --------------------------------------------- */
 
 .sig {
-	font-family: 'Consolas', 'Menlo', 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', monospace;
+    font-family: 'Consolas', 'Menlo', 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', monospace;
 }
 
 .sig-name, code.descname {
@@ -516,7 +516,7 @@ table.hlist td {
 }
 
 .sig-name {
-	font-size: 1.1em;
+    font-size: 1.1em;
 }
 
 code.descname {
@@ -536,29 +536,29 @@ code.descname {
 }
 
 .sig-param.n {
-	font-style: italic;
+    font-style: italic;
 }
 
 /* C++ specific styling */
 
 .sig-inline.c-texpr,
 .sig-inline.cpp-texpr {
-	font-family: unset;
+    font-family: unset;
 }
 
 .sig.c   .k, .sig.c   .kt,
 .sig.cpp .k, .sig.cpp .kt {
-	color: #0033B3;
+    color: #0033B3;
 }
 
 .sig.c   .m,
 .sig.cpp .m {
-	color: #1750EB;
+    color: #1750EB;
 }
 
 .sig.c   .s, .sig.c   .sc,
 .sig.cpp .s, .sig.cpp .sc {
-	color: #067D17;
+    color: #067D17;
 }
 
 

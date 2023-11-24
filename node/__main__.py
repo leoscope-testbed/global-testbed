@@ -17,28 +17,28 @@ def main():
     
     parser = argparse.ArgumentParser(description='Leotest node.')
     parser.add_argument("--nodeid", type=str, required=True, 
-											help='nodeid')
+                                            help='nodeid')
     parser.add_argument("--grpc-hostname", type=str, required=False, 
-											help='gRPC hostname', default="localhost")
+                                            help='gRPC hostname', default="localhost")
     parser.add_argument("--grpc-port", type=int, required=False, 
-											help='gRPC port', default=50051)
+                                            help='gRPC port', default=50051)
     parser.add_argument("--interval", type=int, required=False, 
-											help='orchestrator polling interval', 
+                                            help='orchestrator polling interval', 
                                             default=10)
 
     parser.add_argument("--executor-config", type=str, required=False, 
-											help='executor config yaml', 
+                                            help='executor config yaml', 
                                             default="/executor-config.yaml")  
 
     parser.add_argument("--workdir", type=str, required=False, 
-											help='working directory', 
+                                            help='working directory', 
                                             default="/home/leotest/")   
     parser.add_argument("--artifactdir", type=str, required=False, 
-											help='artifacts directory', 
+                                            help='artifacts directory', 
                                             default="/artifacts/")      
 
     parser.add_argument("--access-token", type=str, required=False, 
-											help='node access token', 
+                                            help='node access token', 
                                             default="leotest-access-token")                                                                   
     args = parser.parse_args()
 

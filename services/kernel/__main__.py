@@ -63,17 +63,17 @@ def main():
     
     parser = argparse.ArgumentParser(description='Leotest kernel service.')
     parser.add_argument("--nodeid", type=str, required=True, 
-											help='nodeid')
+                                            help='nodeid')
     parser.add_argument("--grpc-hostname", type=str, required=False, 
-											help='gRPC hostname', default="localhost")
+                                            help='gRPC hostname', default="localhost")
     parser.add_argument("--grpc-port", type=int, required=False, 
-											help='gRPC port', default=50051)   
+                                            help='gRPC port', default=50051)   
 
     parser.add_argument("--access-token", type=str, required=False, 
-											help='node access token', 
+                                            help='node access token', 
                                             default="leotest-access-token")   
     parser.add_argument("--leotest-net", type=str, required=False, 
-											help='docker network for leotest', 
+                                            help='docker network for leotest', 
                                             default="global-testbed_leotest-net")                                                             
     args = parser.parse_args()
 
@@ -83,8 +83,8 @@ def main():
     access_token = args.access_token
 
     leotest_client = LeotestClient(grpc_hostname=grpc_hostname, 
-							        grpc_port=grpc_port,
-							        userid=nodeid, 
+                                    grpc_port=grpc_port,
+                                    userid=nodeid, 
                                     access_token=access_token)
 
     print('Opening socket..')

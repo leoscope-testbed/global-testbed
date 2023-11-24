@@ -88,8 +88,8 @@
 <span class="kn">from</span> <span class="nn">common.utils</span> <span class="kn">import</span> <span class="n">time_now</span>
 
 <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-	<span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> 
-	<span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(filename)s</span><span class="s2">:</span><span class="si">%(lineno)s</span><span class="s2"> </span><span class="si">%(thread)d</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> 
+    <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(asctime)s</span><span class="s2"> </span><span class="si">%(filename)s</span><span class="s2">:</span><span class="si">%(lineno)s</span><span class="s2"> </span><span class="si">%(thread)d</span><span class="s2"> </span><span class="si">%(levelname)s</span><span class="s2"> </span><span class="si">%(message)s</span><span class="s2">&quot;</span><span class="p">)</span>
 <span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <div class="viewcode-block" id="LeotestDatastoreMongo"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo">[docs]</a><span class="k">class</span> <span class="nc">LeotestDatastoreMongo</span><span class="p">:</span>
@@ -555,13 +555,13 @@
     
 
 <div class="viewcode-block" id="LeotestDatastoreMongo.update_node"><a class="viewcode-back" href="../../orchestrator.html#orchestrator.datastore.LeotestDatastoreMongo.update_node">[docs]</a>    <span class="k">def</span> <span class="nf">update_node</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodeid</span><span class="p">,</span> 
-			<span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
-			<span class="n">description</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
-			<span class="n">last_active</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-			<span class="n">coords</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-			<span class="n">location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-			<span class="n">provider</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-			<span class="n">public_ip</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+            <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+            <span class="n">description</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+            <span class="n">last_active</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">coords</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">provider</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">public_ip</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         
         <span class="sd">&quot;&quot;&quot;update node&quot;&quot;&quot;</span>
         <span class="n">updates</span><span class="o">=</span><span class="p">{}</span>

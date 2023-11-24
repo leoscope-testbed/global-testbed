@@ -19,8 +19,8 @@ from common.node import LeotestNode
 from common.utils import time_now
 
 logging.basicConfig(
-	level=logging.INFO, 
-	format="%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s")
+    level=logging.INFO, 
+    format="%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 class LeotestDatastoreMongo:
@@ -486,13 +486,13 @@ class LeotestDatastoreMongo:
     
 
     def update_node(self, nodeid, 
-			name=None, 
-			description=None, 
-			last_active=None,
-			coords=None,
-			location=None,
-			provider=None,
-			public_ip=None):
+            name=None, 
+            description=None, 
+            last_active=None,
+            coords=None,
+            location=None,
+            provider=None,
+            public_ip=None):
         
         """update node"""
         updates={}
