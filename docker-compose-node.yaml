@@ -6,14 +6,14 @@ services:
       dockerfile: "docker/node/Dockerfile"
     image: "leotest-scheduler"
     command: 
-      - "--nodeid=dummy-local-node"
-      - "--grpc-hostname=localhost"
+      - "--nodeid=<node id>"
+      - "--grpc-hostname=<grpc host ip addr/name>"
       - "--grpc-port=50051"
       - "--interval=10"
       - "--workdir=/leotest/"
       - "--artifactdir=/artifacts/"
       - "--executor-config=/executor-config.yaml"
-      - "--access-token=895c2e820bc08fac5389b8c198a3fc51093b218b583f559989c8751fb758ecb4"
+      - "--access-token=<node access token>"
     
     volumes: 
       - /var/run/docker.sock:/var/run/docker.sock
@@ -37,10 +37,10 @@ services:
     privileged: true
     hostname: "leotest_kernel_service"
     command: 
-      - "--nodeid=dummy-local-node"
-      - "--grpc-hostname=localhost"
+      - "--nodeid=<node id>"
+      - "--grpc-hostname=<grpc host ipaddr/name>"
       - "--grpc-port=50051"
-      - "--access-token=895c2e820bc08fac5389b8c198a3fc51093b218b583f559989c8751fb758ecb"
+      - "--access-token=<node access token>"
       - "--leotest-net=global-testbed_leotest-net"
     
     volumes:
