@@ -624,6 +624,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             'state': state,
             'message': msg
         }
+        print("The result of scheduling job by orchestrator is ***", result)
         return pb2.message_schedule_job_response(**result)
 
     @CheckToken(pb2.message_reschedule_job_response, 

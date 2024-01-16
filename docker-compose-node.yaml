@@ -5,6 +5,11 @@ services:
       context: . 
       dockerfile: "docker/node/Dockerfile"
     image: "leotest-scheduler"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "100"
     command: 
       - "--nodeid=test-node"
       - "--grpc-hostname=<Orchestrator-node-IP-Address>"
@@ -14,11 +19,13 @@ services:
       - "--artifactdir=/artifacts/"
       - "--executor-config=/executor-config.yaml"
       - "--access-token=<Access-Token>"
-    
+#      - "--log-opt max-size=50m --log-opt max-file=100"
+
     volumes: 
       - /var/run/docker.sock:/var/run/docker.sock
       - /datadrive1/leoscope/jobs:/artifacts
       - ./executor-config.yaml:/executor-config.yaml
+#      - /var/log/container/leoscope/logs:/app/logs
 
     # network_mode: "host"
     networks:
