@@ -6,3 +6,4 @@ orchestrator/__pycache__
 services/kernel/__pycache__
 ext_depen/__pycache__
 .DS_Store
+.idea

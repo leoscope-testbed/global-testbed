@@ -1,4 +1,4 @@
-
+import json
 import os
 import time
 import redis 
@@ -614,6 +614,37 @@ def _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_sched
     if 'jobs' in res:
         logmsg = 'syncing jobs: '
         for job in res['jobs']:
+            # Saving experiment config in file:
+            log.info(f"reading job config for job id {job['id']}!")
+            retrieve_job = client.get_job_by_id(job["id"])
+            data = retrieve_job.config
+            lines = data.split('\n')
+            result_dict = {}
+            stack = [result_dict]
+
+            for line in lines:
+                if not line.strip().startswith('#') and line.strip() != '':
+                    indentation = len(line) - len(line.lstrip())
+                    while len(stack) > indentation + 1:
+                        stack.pop()
+                    key, value = map(str.strip, line.split(':', 1))
+                    try:
+                        value = json.loads(value)
+                    except json.JSONDecodeError:
+                        pass
+                    stack[-1][key] = value
+                    if isinstance(value, dict):
+                        stack.append(value)
+
+            log.info(f"finished reading job config for job id {job['id']}!")
+            log.info(f"experiment config result for job id {job['id']} is: {result_dict}")
+
+            file_name = f"/leotest/experiment_configs/experiment_config_{job['id']}.json"
+
+            # Save data to the file inside the container
+            with open(file_name, "w") as file:
+                json.dump(result_dict, file)
+
             if nodeid != job['nodeid']:
                 continue
             server = job['server'] if 'server' in job else None

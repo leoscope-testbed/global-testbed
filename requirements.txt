@@ -15,3 +15,4 @@ redis==4.6.0
 requests==2.28.1
 skyfield==1.46
 tenacity==8.2.2
+ipython==8.18.1
