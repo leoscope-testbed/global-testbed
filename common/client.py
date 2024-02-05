@@ -369,11 +369,14 @@ class LeotestClient:
                 return self.grpc_stub.update_run(message, timeout=self.timeout)
     
 
-    def get_runs(self, runid=None, jobid=None, nodeid=None, time_range=None, limit=None):
+    def get_runs(self, userid=None, runid=None, jobid=None, nodeid=None, time_range=None, limit=None):
         for attempt in self._retry():
             with attempt:
                 log.info('sending request to fetch runs')
                 message = pb2.message_get_runs()
+
+                if userid:
+                    message.userid = userid
 
                 if runid:
                     message.runid = runid
