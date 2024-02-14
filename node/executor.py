@@ -379,15 +379,16 @@ class LeotestExecutorDocker(LeotestExecutor):
 
         network_mode = None
         network = None
-        # if (not self.params['server_mode']) and 'network' in self.params["executor"]["docker"]["execute"]: 
-        if 'network' in self.params["executor"]["docker"]["execute"]: 
+
+        if 'network' in self.params["executor"]["docker"]["execute"]:
             network = self.params["executor"]["docker"]["execute"]["network"]
         else:
             network_mode = 'host'
 
-        ports = None 
-        if network != 'host' and 'ports' in self.params["experiment"]["docker"]["execute"]:
-            ports = self.params["experiment"]["docker"]["execute"]["ports"]
+        # ports = None
+        # self.log.info("ports params are *** %s" % self.params["experiment"]["docker"]["execute"])
+        # if network != 'host' and 'ports' in self.params["experiment"]["docker"]["execute"]:
+        #         ports = self.params["experiment"]["docker"]["execute"]["ports"]
 
         image = self.params["experiment"]["docker"]["image"]
         
@@ -404,8 +405,7 @@ class LeotestExecutorDocker(LeotestExecutor):
         else:
             environment.append("LEOTEST_SERVERIP=None")
             environment.append("LEOTEST_SERVER_NODEID=None")
-        # container_name = self.params["experiment"]["docker"]["execute"]["name"]
-        # container_name += "_" + self.params["jobid"]
+
         # volume
         shared = {src_path: {'bind': dst_path, 'mode': 'rw'}}
         print(shared)
@@ -425,32 +425,28 @@ class LeotestExecutorDocker(LeotestExecutor):
         }
         
         self.log.info('container network: %s' % network)
-        self.log.info('container ports: %s' % str(ports))
+        # self.log.info('container ports: %s' % str(ports))
         self.log.info('--- log stream started for %s ---' % (self.container_name))
 
         try:
             output = self.client.containers.run(
-                        image=image,
-                        user=os.getuid(), # this helps avoid files being generated with root as owner
-                        #command = '/bin/bash',
-                        detach = False,    # If kept to false, will block the script. If script is killed, container exits 
-                        name = self.container_name,
-                        network_mode = network_mode,
-                        privileged = False,
-                        # cap_add = ["CAP_NET_ADMIN"],
-                        network = network,
-                        ports = ports,
-                        stdin_open = True, # have to keep STDIN open to avoid container exit
-                        tty = False,           
-                        # allocate pseudo tty to avoid container exit 
-                        # (however, this causes character-output instead of line-output when stream=True)
-                        # https://github.com/docker/docker-py/issues/2913
-                        volumes = shared,
-                        stdout=True, 
-                        stderr=True,
-                        stream=True,
-                        environment=environment,
-                        labels=labels
+                image=image,
+                user=os.getuid(),
+                detach=False,
+                name=self.container_name,
+                network_mode=network_mode,
+                privileged=False,
+                network=network,
+                stdin_open=True,
+                tty=False,
+                mem_limit="512m",
+                volumes=shared,
+                # ports=ports,
+                stdout=True,
+                stderr=True,
+                stream=True,
+                environment=environment,
+                labels=labels
             )
         except Exception as e:
             self.log.info(str(e))
@@ -568,20 +564,47 @@ def main():
     client = LeotestClient(grpc_hostname=args.grpc_hostname, 
                             grpc_port=args.grpc_port,
                             userid=nodeid, access_token=access_token)
-    res = client.get_config()
 
+    res = client.get_config()
     config = MessageToDict(res)['config']
-    print(config)
     connection_string = config['datastore']['blob']['connectionString']
     container = config['datastore']['blob']['container']
- 
-    #possible change here as well for exp specific cloud 
-    # res2 = client.get_job_by_id(jobid)
-    # exp_args_from_orch = MessageToDict(res2)
-    # exp_config = exp_args_from_orch['config']
-    # #possibly write to yaml and safe load to act like dictionary
-    # connection_string = exp_config["cloud_config"]["connection_string"]
-    # container = exp_config["cloud_config"]["container"] 
+
+    result_dict = {}
+    stack = [result_dict]
+    jobs = client.get_jobs_by_nodeid(nodeid)
+
+    if len(jobs.jobs) > 0:
+        for job in jobs.jobs:
+            fetched_job = client.get_job_by_id(job.id)
+            serialized_job = MessageToDict(fetched_job)
+            data = serialized_job["config"]
+            lines = data.split('\n')
+            job_id = fetched_job.id
+
+            if job_id:
+                for line in lines:
+                    if not line.strip().startswith('#') and line.strip() != '':
+                        indentation = len(line) - len(line.lstrip())
+                        while len(stack) > indentation + 1:
+                            stack.pop()
+                        key, value = map(str.strip, line.split(':', 1))
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            pass
+                        stack[-1][key] = value
+                        if isinstance(value, dict):
+                            stack.append(value)
+        connection_string = result_dict.get("connection_string").strip('"')
+        container = result_dict.get("container").strip('"')
+
+    elif (connection_string is None) or (container is None) or (len(jobs.jobs) < 1):
+        res = client.get_config()
+        config = MessageToDict(res)['config']
+
+        connection_string = config['datastore']['blob']['connectionString']
+        container = config['datastore']['blob']['container']
     
  
     server_ip = None 

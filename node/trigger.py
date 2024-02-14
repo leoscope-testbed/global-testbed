@@ -57,7 +57,7 @@ class LeotestGrpcMonitor:
         self.port = 1883
         self.id = dish_id
         self.fields = fields
-        self.client = mqtt.Client("leotest_grpc")
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "leotest_grpc")
         self.client.on_connect = self.on_connect  
         self.client.on_message = self.on_message 
         self.triggerobj = triggerobj 
@@ -387,7 +387,7 @@ class LeotestTriggerMode:
                 self.env["%s_%d" % (field, i)] = -1
         
         # init queue 
-        self.mqtt_client = mqtt.Client("leotest_trigger")
+        self.mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "leotest_trigger")
         self.mqtt_client.on_connect = self.on_queue_connect  
         self.mqtt_client.on_message = self.on_queue_message
 

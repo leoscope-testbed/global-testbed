@@ -18,6 +18,8 @@ RUN pip install requests
 COPY node /leotest/node/
 COPY common /leotest/common/
 COPY certs /leotest/certs/
+COPY ext_depen /leotest/ext_depen/
+COPY experiment_configs /leotest/experiment_configs/
 
 ENTRYPOINT [ "python", "-m", "node"]
-# ENTRYPOINT ["/bin/bash"]
+#ENTRYPOINT ["/bin/bash"]
