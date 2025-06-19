@@ -1,4 +1,4 @@
-FROM python:3.7-bullseye
+FROM python:3.10-bullseye
 
 RUN apt-get update
 RUN apt-get install -y git
