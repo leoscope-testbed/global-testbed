@@ -19,6 +19,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /datadrive1/leoscope/jobs:/artifacts
       - ./executor-config.yaml:/executor-config.yaml
+      - ./experiment_configs:/leotest/experiment_configs
 
     # network_mode: "host"
     networks:

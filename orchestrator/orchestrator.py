@@ -617,7 +617,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                                             server=server,
                                             trigger=trigger,
                                             config=config)
-                    
+                    print("Orchestrator : Job added %s" %(id)) 
                     state, msg = self.db.add_job(job)
 
         result = {
@@ -689,7 +689,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                     if next_slot:
                         log.info('[reschedule_job_nearest] found next slot: %s' 
                                                                 % str(next_slot))
-                        end_time = next_slot
+                        end_time = job.end_date
                         self.db.update_job_date(jobid, next_slot, end_time)
                         state = True
                         msg = "updated job schedule successfully; next_slot=%s" % str(next_slot)

@@ -213,10 +213,17 @@ class LeotestClient:
         """        
         log.info("[schedule_job] jobid=%s nodeid=%s type=%s params" 
                     "\{mode=%s deploy=%s execute=%s finish=%s\} schedule=%s"
-                    "start_date=%s end_date=%s length=%d overhead=%s server=%s trigger=%s"
+                    "start_date=%s end_date=%s length=%d overhead=%s server=%s trigger=%s experiment_config=%s"
                     % (jobid, nodeid, type_name, params_mode, params_deploy, 
                         params_execute, params_finish, schedule, 
-                        start_date, end_date, length, overhead, server, trigger))
+                        start_date, end_date, length, overhead, server, trigger, experiment_config))
+        
+        
+        print("experiment config is ***", experiment_config)
+
+
+        log.info("experiment configs are *** %s", experiment_config)
+                    
         
         for attempt in self._retry():
             with attempt:
@@ -259,6 +266,7 @@ class LeotestClient:
                 #                 container, exp_args_file, remote_path)                    
 
                 _type = pb2.job_type.Value(type_name.upper())
+                log.info("Scheduling job on nodeis : %s" %(nodeid))
                 message = pb2.message_schedule_job(
                     id = jobid,
                     nodeid = nodeid,
@@ -369,12 +377,15 @@ class LeotestClient:
                 return self.grpc_stub.update_run(message, timeout=self.timeout)
     
 
-    def get_runs(self, runid=None, jobid=None, nodeid=None, time_range=None, limit=None):
+    def get_runs(self, userid=None, runid=None, jobid=None, nodeid=None, time_range=None, limit=None):
         for attempt in self._retry():
             with attempt:
                 log.info('sending request to fetch runs')
                 message = pb2.message_get_runs()
 
+                if userid:
+                    message.userid = userid
+                
                 if runid:
                     message.runid = runid
 
