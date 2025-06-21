@@ -5,6 +5,7 @@ services:
       context: . 
       dockerfile: "docker/node/Dockerfile"
     image: "leotest-scheduler"
+    restart: always
     command: 
       - "--nodeid=test-node"
       - "--grpc-hostname=<Orchestrator-node-IP-Address>"
@@ -30,7 +31,7 @@ services:
       - mqtt
       - memcached
   
-  app:
+  dashboard:
     build:
       context: ./dashboard
       dockerfile: "Dockerfile" # Reference Dockerfile in dashboard folder
@@ -52,6 +53,7 @@ services:
       context: . 
       dockerfile: "docker/services/kernel/Dockerfile"
     image: "leotest-kernel-service"
+    restart: always
     privileged: true
     hostname: "leotest_kernel_service"
     command: 
@@ -72,6 +74,7 @@ services:
   memcached:
     container_name: leotest-session-cache
     image: memcached:latest
+    restart: always
     # ports:
     #     - "11211:11211"
 
@@ -90,6 +93,7 @@ services:
   mqtt:
     container_name: leotest-message-queue
     image: eclipse-mosquitto:latest
+    restart: always
     volumes:
       - ./config/mosquitto:/mosquitto
 
@@ -108,6 +112,7 @@ services:
   redis:
     container_name: leotest-tmp-store
     image: redis 
+    restart: always
     # ports:
     # - 6379:6379
     networks:
@@ -122,6 +127,7 @@ services:
   # python3 dish_grpc_mqtt.py --port 1883 -t 2 status
   starlink-grpc-tools:
     container_name: starlink-grpc-tools
+    restart: always
     build:
       context: . 
       dockerfile: "docker/starlink-grpc-tools/Dockerfile"
