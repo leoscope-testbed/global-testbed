@@ -30,6 +30,23 @@ services:
       - mqtt
       - memcached
   
+  app:
+    build:
+      context: ./dashboard
+      dockerfile: "Dockerfile" # Reference Dockerfile in dashboard folder
+    container_name: dashboard
+    restart: always
+    environment:
+      - TZ=Europe/London
+      - CLIENT_NAME=test_node  # Match nodeid 
+      - UPLOAD_URL=https://leoscope.surrey.ac.uk/api/upload # Updated URL
+      - IPERF_SERVER=35.177.249.56
+      - IPERF_PORT=2025
+    ports:
+      - "2025:2025"
+    networks:
+      - leotest-net
+
   kernel:
     build:
       context: . 
@@ -125,6 +142,9 @@ services:
     
     networks:
       - leotest-net
+
+ 
+
 
 networks:
   leotest-net:
