@@ -42,8 +42,57 @@ services:
         max-file: "1"
         max-size: "2048m"
 
-volumes:
-  mongodb_data_container: 
+  orchestrator_redesign:
+    profiles: ["redesign"]
+    build:
+      context: .
+      dockerfile: "docker/orchestrator/Dockerfile"
+    image: "leotest-orchestrator:redesign"
+    hostname: "orchestrator_redesign"
+    command:
+      - "--grpc-hostname=0.0.0.0"
+      - "--grpc-port=50051"
+      - "--grpc-workers=10"
+      - "--db-server=datastore_redesign"
+      - "--db-port=27017"
+      - "--db-name=${LEOSCOPE_REDESIGN_DB_NAME:-leotest}"
+      - "--admin-access-token=${LEOSCOPE_REDESIGN_ADMIN_ACCESS_TOKEN:-temp-redesign}"
+      - "--jwt-secret=${LEOSCOPE_REDESIGN_JWT_SECRET:-d1b9bf28b2325787ca0b33d3b218f961badb2e644f48e7b382129053a4338e43}"
+      - "--jwt-algo=${LEOSCOPE_REDESIGN_JWT_ALGO:-HS256}"
+    ports:
+      - "${LEOSCOPE_REDESIGN_GRPC_PORT:-50052}:50051"
+    depends_on:
+      - datastore_redesign
+    networks:
+      - default
+      - leoscopenet
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "1"
+        max-size: "2048m"
 
-# networks:
-  # ...
+  datastore_redesign:
+    profiles: ["redesign"]
+    hostname: "datastore_redesign"
+    image: "mongo:latest"
+    ports:
+      - "${LEOSCOPE_REDESIGN_MONGO_PORT:-27018}:27017"
+    volumes:
+      - mongodb_redesign_data:/data/db
+    networks:
+      - default
+      - leoscopenet
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "1"
+        max-size: "2048m"
+
+volumes:
+  mongodb_data_container:
+  mongodb_redesign_data:
+
+networks:
+  leoscopenet:
+    external: true

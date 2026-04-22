@@ -81,7 +81,16 @@ class LeotestClient:
                 # channel = grpc.insecure_channel(
                 #     '{}:{}'.format(self.grpc_hostname, self.grpc_port))
 
-                with open('certs/server.crt', 'rb') as f:
+                client_dir = os.path.dirname(os.path.abspath(__file__))
+                cert_candidates = [
+                    os.path.join(os.getcwd(), 'certs', 'server.crt'),
+                    os.path.join(client_dir, '..', 'certs', 'server.crt'),
+                    os.path.join(client_dir, 'certs', 'server.crt'),
+                ]
+                cert_path = next(
+                    (path for path in cert_candidates if os.path.exists(path)),
+                    cert_candidates[0])
+                with open(cert_path, 'rb') as f:
                     trusted_certs = f.read()
 
                 credentials = grpc.ssl_channel_credentials(root_certificates=trusted_certs)
@@ -184,6 +193,73 @@ class LeotestClient:
                 log.info('sending request to delete user (id=%s)' % (id))
                 message = pb2.message_delete_user(userid=id)
                 return self.grpc_stub.delete_user(message, timeout=self.timeout)
+
+    def submit_access_request(self, email, full_name, organisation, request_role,
+                              signature, accepted_eula, eula_version, signed_at,
+                              signed_pdf, pdf_filename, signup_token_hash,
+                              signup_token_created_at, signup_token_expires_at):
+        """Send a signed website access request to the orchestrator."""
+        for attempt in self._retry():
+            with attempt:
+                log.info('sending access request submission (email=%s)' % email)
+                message = pb2.message_submit_access_request(
+                    email=email,
+                    full_name=full_name,
+                    organisation=organisation or '',
+                    request_role=request_role or '',
+                    signature=signature,
+                    accepted_eula=accepted_eula,
+                    eula_version=eula_version,
+                    signed_at=signed_at,
+                    signed_pdf=signed_pdf,
+                    pdf_filename=pdf_filename,
+                    signup_token_hash=signup_token_hash,
+                    signup_token_created_at=signup_token_created_at,
+                    signup_token_expires_at=signup_token_expires_at)
+                return self.grpc_stub.submit_access_request(
+                    message, timeout=self.timeout)
+
+    def update_access_request_email_status(self, email, email_status, status_at):
+        """Update email delivery status for a pending website access request."""
+        for attempt in self._retry():
+            with attempt:
+                log.info('updating access request email status (email=%s status=%s)'
+                         % (email, email_status))
+                message = pb2.message_update_access_request_email_status(
+                    email=email,
+                    email_status=email_status,
+                    status_at=status_at)
+                return self.grpc_stub.update_access_request_email_status(
+                    message, timeout=self.timeout)
+
+    def get_registration_invite(self, signup_token_hash):
+        """Fetch non-sensitive fields for a one-time registration invite."""
+        for attempt in self._retry():
+            with attempt:
+                log.info('fetching registration invite')
+                message = pb2.message_get_registration_invite(
+                    signup_token_hash=signup_token_hash)
+                return self.grpc_stub.get_registration_invite(
+                    message, timeout=self.timeout)
+
+    def activate_signup_user(self, signup_token_hash, email, name, team,
+                             password_hash, role, signup_token_used_at):
+        """Activate a pending website access request as a real user."""
+        for attempt in self._retry():
+            with attempt:
+                log.info('activating signup user (email=%s)' % email)
+                roleid = role if isinstance(role, int) else pb2.user_roles.Value(
+                    role.upper())
+                message = pb2.message_activate_signup_user(
+                    signup_token_hash=signup_token_hash,
+                    email=email,
+                    name=name,
+                    team=team,
+                    password_hash=password_hash,
+                    role=roleid,
+                    signup_token_used_at=signup_token_used_at)
+                return self.grpc_stub.activate_signup_user(
+                    message, timeout=self.timeout)
 
 
     def schedule_job(self, jobid, nodeid, type_name, 
@@ -659,6 +735,4 @@ class LeotestClient:
         message.start = start 
         message.end = end 
         return self.grpc_stub.get_scheduled_runs(message, timeout=self.timeout)
-
-
 

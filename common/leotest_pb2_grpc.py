@@ -50,6 +50,26 @@ class LeotestOrchestratorStub(object):
                 request_serializer=common_dot_leotest__pb2.message_delete_user.SerializeToString,
                 response_deserializer=common_dot_leotest__pb2.message_delete_user_response.FromString,
                 )
+        self.submit_access_request = channel.unary_unary(
+                '/unary.LeotestOrchestrator/submit_access_request',
+                request_serializer=common_dot_leotest__pb2.message_submit_access_request.SerializeToString,
+                response_deserializer=common_dot_leotest__pb2.message_submit_access_request_response.FromString,
+                )
+        self.update_access_request_email_status = channel.unary_unary(
+                '/unary.LeotestOrchestrator/update_access_request_email_status',
+                request_serializer=common_dot_leotest__pb2.message_update_access_request_email_status.SerializeToString,
+                response_deserializer=common_dot_leotest__pb2.message_update_access_request_email_status_response.FromString,
+                )
+        self.get_registration_invite = channel.unary_unary(
+                '/unary.LeotestOrchestrator/get_registration_invite',
+                request_serializer=common_dot_leotest__pb2.message_get_registration_invite.SerializeToString,
+                response_deserializer=common_dot_leotest__pb2.message_get_registration_invite_response.FromString,
+                )
+        self.activate_signup_user = channel.unary_unary(
+                '/unary.LeotestOrchestrator/activate_signup_user',
+                request_serializer=common_dot_leotest__pb2.message_activate_signup_user.SerializeToString,
+                response_deserializer=common_dot_leotest__pb2.message_activate_signup_user_response.FromString,
+                )
         self.schedule_job = channel.unary_unary(
                 '/unary.LeotestOrchestrator/schedule_job',
                 request_serializer=common_dot_leotest__pb2.message_schedule_job.SerializeToString,
@@ -201,6 +221,30 @@ class LeotestOrchestratorServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def delete_user(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def submit_access_request(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def update_access_request_email_status(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def get_registration_invite(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def activate_signup_user(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -374,6 +418,26 @@ def add_LeotestOrchestratorServicer_to_server(servicer, server):
                     servicer.delete_user,
                     request_deserializer=common_dot_leotest__pb2.message_delete_user.FromString,
                     response_serializer=common_dot_leotest__pb2.message_delete_user_response.SerializeToString,
+            ),
+            'submit_access_request': grpc.unary_unary_rpc_method_handler(
+                    servicer.submit_access_request,
+                    request_deserializer=common_dot_leotest__pb2.message_submit_access_request.FromString,
+                    response_serializer=common_dot_leotest__pb2.message_submit_access_request_response.SerializeToString,
+            ),
+            'update_access_request_email_status': grpc.unary_unary_rpc_method_handler(
+                    servicer.update_access_request_email_status,
+                    request_deserializer=common_dot_leotest__pb2.message_update_access_request_email_status.FromString,
+                    response_serializer=common_dot_leotest__pb2.message_update_access_request_email_status_response.SerializeToString,
+            ),
+            'get_registration_invite': grpc.unary_unary_rpc_method_handler(
+                    servicer.get_registration_invite,
+                    request_deserializer=common_dot_leotest__pb2.message_get_registration_invite.FromString,
+                    response_serializer=common_dot_leotest__pb2.message_get_registration_invite_response.SerializeToString,
+            ),
+            'activate_signup_user': grpc.unary_unary_rpc_method_handler(
+                    servicer.activate_signup_user,
+                    request_deserializer=common_dot_leotest__pb2.message_activate_signup_user.FromString,
+                    response_serializer=common_dot_leotest__pb2.message_activate_signup_user_response.SerializeToString,
             ),
             'schedule_job': grpc.unary_unary_rpc_method_handler(
                     servicer.schedule_job,
@@ -607,6 +671,74 @@ class LeotestOrchestrator(object):
         return grpc.experimental.unary_unary(request, target, '/unary.LeotestOrchestrator/delete_user',
             common_dot_leotest__pb2.message_delete_user.SerializeToString,
             common_dot_leotest__pb2.message_delete_user_response.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def submit_access_request(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/unary.LeotestOrchestrator/submit_access_request',
+            common_dot_leotest__pb2.message_submit_access_request.SerializeToString,
+            common_dot_leotest__pb2.message_submit_access_request_response.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def update_access_request_email_status(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/unary.LeotestOrchestrator/update_access_request_email_status',
+            common_dot_leotest__pb2.message_update_access_request_email_status.SerializeToString,
+            common_dot_leotest__pb2.message_update_access_request_email_status_response.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def get_registration_invite(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/unary.LeotestOrchestrator/get_registration_invite',
+            common_dot_leotest__pb2.message_get_registration_invite.SerializeToString,
+            common_dot_leotest__pb2.message_get_registration_invite_response.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def activate_signup_user(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/unary.LeotestOrchestrator/activate_signup_user',
+            common_dot_leotest__pb2.message_activate_signup_user.SerializeToString,
+            common_dot_leotest__pb2.message_activate_signup_user_response.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

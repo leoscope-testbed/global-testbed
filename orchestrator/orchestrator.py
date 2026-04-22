@@ -364,7 +364,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         
         else:
             state = 1
-            message = "permission denied: userid=%s and role=%s" % (_userid, _role_name)
+            msg = "permission denied: userid=%s and role=%s" % (_userid, _role_name)
 
         result = {
             'state': state,
@@ -395,6 +395,123 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             'message': msg
         }
         return pb2.message_delete_user_response(**result)
+
+    @CheckToken(pb2.message_submit_access_request_response,
+                grpc.StatusCode.UNAUTHENTICATED,
+                "Invalid token")
+    def submit_access_request(self, request, context):
+        """Persist a website access request in the users collection."""
+        _userid = context.creds_userid
+        _role = context.creds_role
+        _role_name = LeotestUserRoles(_role).name
+
+        if _role == LeotestUserRoles.ADMIN.value:
+            state, msg = self.db.submit_access_request({
+                'email': request.email,
+                'full_name': request.full_name,
+                'organisation': request.organisation,
+                'request_role': request.request_role,
+                'signature': request.signature,
+                'accepted_eula': request.accepted_eula,
+                'eula_version': request.eula_version,
+                'signed_at': request.signed_at,
+                'signed_pdf': request.signed_pdf,
+                'pdf_filename': request.pdf_filename,
+                'signup_token_hash': request.signup_token_hash,
+                'signup_token_created_at': request.signup_token_created_at,
+                'signup_token_expires_at': request.signup_token_expires_at,
+            })
+        else:
+            state = 1
+            msg = "permission denied: userid=%s and role=%s" % (_userid, _role_name)
+
+        return pb2.message_submit_access_request_response(
+            state=state, message=msg)
+
+    @CheckToken(pb2.message_update_access_request_email_status_response,
+                grpc.StatusCode.UNAUTHENTICATED,
+                "Invalid token")
+    def update_access_request_email_status(self, request, context):
+        """Update website access request email delivery status."""
+        _userid = context.creds_userid
+        _role = context.creds_role
+        _role_name = LeotestUserRoles(_role).name
+
+        if _role == LeotestUserRoles.ADMIN.value:
+            state, msg = self.db.update_access_request_email_status(
+                request.email, request.email_status, request.status_at)
+        else:
+            state = 1
+            msg = "permission denied: userid=%s and role=%s" % (_userid, _role_name)
+
+        return pb2.message_update_access_request_email_status_response(
+            state=state, message=msg)
+
+    @CheckToken(pb2.message_get_registration_invite_response,
+                grpc.StatusCode.UNAUTHENTICATED,
+                "Invalid token")
+    def get_registration_invite(self, request, context):
+        """Return non-sensitive fields for a one-time signup link."""
+        _userid = context.creds_userid
+        _role = context.creds_role
+        _role_name = LeotestUserRoles(_role).name
+
+        if _role == LeotestUserRoles.ADMIN.value:
+            state, msg, invite = self.db.get_registration_invite(
+                request.signup_token_hash)
+            if state == 0 and invite:
+                access_request = invite.get('access_request', {})
+                expires_at = invite.get('signup_token_expires_at')
+                if isinstance(expires_at, datetime):
+                    expires_at = expires_at.isoformat()
+
+                return pb2.message_get_registration_invite_response(
+                    exists=True,
+                    email=invite.get('id', ''),
+                    full_name=access_request.get('full_name') or invite.get('name', ''),
+                    organisation=access_request.get('organisation', ''),
+                    request_role=access_request.get('role', ''),
+                    expires_at=expires_at or '',
+                    state=state,
+                    message=msg)
+        else:
+            state = 1
+            msg = "permission denied: userid=%s and role=%s" % (_userid, _role_name)
+
+        return pb2.message_get_registration_invite_response(
+            exists=False,
+            email='',
+            full_name='',
+            organisation='',
+            request_role='',
+            expires_at='',
+            state=state,
+            message=msg)
+
+    @CheckToken(pb2.message_activate_signup_user_response,
+                grpc.StatusCode.UNAUTHENTICATED,
+                "Invalid token")
+    def activate_signup_user(self, request, context):
+        """Activate a pending website access request as a signed-up user."""
+        _userid = context.creds_userid
+        _role = context.creds_role
+        _role_name = LeotestUserRoles(_role).name
+
+        if _role == LeotestUserRoles.ADMIN.value:
+            state, msg = self.db.activate_signup_user(
+                request.signup_token_hash,
+                request.email,
+                request.name,
+                request.team,
+                request.password_hash,
+                request.role,
+                request.signup_token_used_at)
+        else:
+            state = 1
+            msg = "permission denied: userid=%s and role=%s" % (_userid, _role_name)
+
+        return pb2.message_activate_signup_user_response(
+            state=state, message=msg)
     
     def verify_user(self, userid, access_token):
         """Given ``userid`` and ``access_token`` verify and return the user role.

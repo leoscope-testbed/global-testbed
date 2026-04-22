@@ -30,6 +30,18 @@ service LeotestOrchestrator {
     
     rpc delete_user(message_delete_user)
             returns (message_delete_user_response) {}
+
+    rpc submit_access_request(message_submit_access_request)
+            returns (message_submit_access_request_response) {}
+
+    rpc update_access_request_email_status(message_update_access_request_email_status)
+            returns (message_update_access_request_email_status_response) {}
+
+    rpc get_registration_invite(message_get_registration_invite)
+            returns (message_get_registration_invite_response) {}
+
+    rpc activate_signup_user(message_activate_signup_user)
+            returns (message_activate_signup_user_response) {}
     
     /* job allocate/modify/get/delete */
 
@@ -210,6 +222,68 @@ message message_delete_user {
 message message_delete_user_response {
     response_state state = 1; 
     string message = 2; 
+}
+
+message message_submit_access_request {
+    string email = 1;
+    string full_name = 2;
+    string organisation = 3;
+    string request_role = 4;
+    string signature = 5;
+    bool accepted_eula = 6;
+    string eula_version = 7;
+    string signed_at = 8;
+    bytes signed_pdf = 9;
+    string pdf_filename = 10;
+    string signup_token_hash = 11;
+    string signup_token_created_at = 12;
+    string signup_token_expires_at = 13;
+}
+
+message message_submit_access_request_response {
+    response_state state = 1;
+    string message = 2;
+}
+
+message message_update_access_request_email_status {
+    string email = 1;
+    string email_status = 2;
+    string status_at = 3;
+}
+
+message message_update_access_request_email_status_response {
+    response_state state = 1;
+    string message = 2;
+}
+
+message message_get_registration_invite {
+    string signup_token_hash = 1;
+}
+
+message message_get_registration_invite_response {
+    bool exists = 1;
+    string email = 2;
+    string full_name = 3;
+    string organisation = 4;
+    string request_role = 5;
+    string expires_at = 6;
+    response_state state = 7;
+    string message = 8;
+}
+
+message message_activate_signup_user {
+    string signup_token_hash = 1;
+    string email = 2;
+    string name = 3;
+    string team = 4;
+    string password_hash = 5;
+    user_roles role = 6;
+    string signup_token_used_at = 7;
+}
+
+message message_activate_signup_user_response {
+    response_state state = 1;
+    string message = 2;
 }
 
 
@@ -559,8 +633,6 @@ message message_get_scheduled_runs_response {
     string message = 2; 
     repeated run_event events = 3;  
 }
-
-
 
 
 

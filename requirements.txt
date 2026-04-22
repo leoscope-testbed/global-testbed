@@ -2,6 +2,7 @@ atd==0.1.5
 croniter==1.4.1
 grpc==1.0.0
 grpcio==1.54.2
+grpcio-tools==1.54.2
 jose==1.0.0
 paho_mqtt==1.6.1
 protobuf==4.23.4

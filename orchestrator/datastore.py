@@ -7,6 +7,7 @@ Database contains information about the users, nodes, job schedules, runs (statu
 from pymongo import ASCENDING, DESCENDING, DeleteOne, MongoClient, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import ConnectionFailure, DuplicateKeyError
+from bson.binary import Binary
 from typing import List
 import logging 
 
@@ -24,6 +25,8 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 class LeotestDatastoreMongo:
+    PENDING_REGISTRATION_STATES = {"pending_signup", "signup_link_sent"}
+
     def __init__(self, server='localhost', port=27017, database='leotest', 
                 admin_access_token='leotest-access-token') -> None:
         self.client = MongoClient(server, port)
@@ -48,6 +51,12 @@ class LeotestDatastoreMongo:
                                 name='node_query_index')
         
         self._tasks.create_index('expire_at', expireAfterSeconds=0)
+        self._users.create_index('id', name='user_id_index')
+        self._users.create_index('signup_token_hash', sparse=True,
+                                name='signup_token_hash_index')
+        self._users.create_index([('registration_status', ASCENDING),
+                                ('access_request_status', ASCENDING)],
+                                name='user_registration_status_index')
         self.admin_access_token = admin_access_token
 
         # create an admin user 
@@ -82,16 +91,73 @@ class LeotestDatastoreMongo:
                                         session=session)
         return (0, config)
 
+    def _coerce_datetime(self, value, fallback=None):
+        if isinstance(value, datetime.datetime):
+            date_value = value
+        elif value:
+            date_value = datetimeParse(str(value))
+        elif fallback:
+            date_value = fallback
+        else:
+            date_value = time_now()
+
+        if date_value.tzinfo:
+            date_value = date_value.astimezone(
+                datetime.timezone.utc).replace(tzinfo=None)
+        return date_value.replace(microsecond=0)
+
+    def _is_pending_user_document(self, user):
+        return bool(user) and user.get(
+            "registration_status") in self.PENDING_REGISTRATION_STATES
+
+    def _is_active_user_document(self, user):
+        if not user or self._is_pending_user_document(user):
+            return False
+        return bool(user.get("access_token") or user.get("static_access_token"))
+
+    def _user_from_document(self, user):
+        if not self._is_active_user_document(user):
+            return None
+
+        return LeotestUser(id=user.get('id', ''),
+                            name=user.get('name', ''),
+                            role=user.get('role', LeotestUserRoles.USER.value),
+                            team=user.get('team', ''),
+                            static_access_token=user.get('static_access_token', ''),
+                            access_token=user.get('access_token', ''))
+
+    def get_user_document(self, userid):
+        with self.client.start_session() as session:
+            return self._users.find_one({"id": userid}, session=session)
+
     def add_user(self, user: LeotestUser):
         """register user on leotest"""
 
         document = user.document()
+        now = time_now().replace(microsecond=0)
+        document.setdefault('registration_status', 'active')
+        document.setdefault('access_request_status', 'registered')
+        document.setdefault('updated_at', now)
         with self.client.start_session() as session: 
             exists = self._users.find_one({"id": document['id']}, 
                                                     session=session)
-            if exists: 
+            if self._is_active_user_document(exists):
                 return (1, "user with given id already exists")
+
+            if exists:
+                document.setdefault('created_at', exists.get('created_at', now))
+                self._users.update_one({
+                    '_id': exists['_id']
+                }, {
+                    '$set': document,
+                    '$unset': {
+                        'signup_token_hash': '',
+                        'signup_token_expires_at': ''
+                    }
+                }, session=session)
+                return (0, "user registered")
             else:
+                document.setdefault('created_at', now)
                 self._users.insert_one(document, session=session)
                 return (0, "user registered")
 
@@ -99,16 +165,8 @@ class LeotestDatastoreMongo:
         with self.client.start_session() as session:
             user = self._users.find_one({"id": userid}, 
                                         session=session)
-            
-            if user:
-                return LeotestUser(id=user['id'], 
-                                    name=user['name'], 
-                                    role=user['role'], 
-                                    team=user['team'],
-                                    static_access_token=user['static_access_token'],
-                                    access_token=user['access_token'])
-            else:
-                return None
+
+            return self._user_from_document(user)
 
 
     def modify_user(self, user: LeotestUser) -> None:
@@ -124,6 +182,11 @@ class LeotestDatastoreMongo:
         with self.client.start_session() as session: 
 
             document.pop('id', None)
+            if document.get('static_access_token') == '':
+                document.pop('static_access_token', None)
+            if document.get('access_token') == '':
+                document.pop('access_token', None)
+            document['updated_at'] = time_now().replace(microsecond=0)
             self._users.update_one({
                 'id': id
             }, {
@@ -147,6 +210,178 @@ class LeotestDatastoreMongo:
             self._users.delete_one({'id': id}, session=session)   
 
         return (0, "user deleted")
+
+    def submit_access_request(self, request_data):
+        email = request_data.get('email', '').strip().lower()
+        if not email:
+            return (1, "email is required")
+        if not request_data.get('accepted_eula'):
+            return (1, "EULA acceptance is required")
+        signup_token_hash = request_data.get('signup_token_hash', '').strip()
+        if not signup_token_hash:
+            return (1, "signup token hash is required")
+
+        signed_at = self._coerce_datetime(request_data.get('signed_at'))
+        token_created_at = self._coerce_datetime(
+            request_data.get('signup_token_created_at'), signed_at)
+        token_expires_at = self._coerce_datetime(
+            request_data.get('signup_token_expires_at'), signed_at)
+        domain = email.split('@')[-1] if '@' in email else ''
+        full_name = request_data.get('full_name', '').strip()
+        organisation = request_data.get('organisation', '').strip()
+        request_role = request_data.get('request_role', '').strip()
+        signature = request_data.get('signature', '').strip()
+        pdf_filename = request_data.get('pdf_filename') or (
+            "leoscope-signed-eula-%s.pdf" % email.replace('@', '_at_'))
+
+        request_record = {
+            'status': 'signup_link_sent',
+            'requested_at': signed_at,
+            'updated_at': signed_at,
+            'full_name': full_name,
+            'email': email,
+            'email_domain': domain,
+            'organisation': organisation,
+            'role': request_role,
+            'accepted_eula': bool(request_data.get('accepted_eula')),
+            'signature': signature,
+            'eula_version': request_data.get('eula_version', ''),
+            'eula_signed_at': signed_at,
+            'email_status': 'pending'
+        }
+
+        pending_user_update = {
+            'id': email,
+            'name': full_name,
+            'team': "%s - " % organisation,
+            'role': LeotestUserRoles.USER.value,
+            'registration_status': 'signup_link_sent',
+            'access_request_status': 'signup_link_sent',
+            'access_request': request_record,
+            'eula': {
+                'version': request_data.get('eula_version', ''),
+                'signed_at': signed_at,
+                'signature': signature,
+                'pdf_filename': pdf_filename,
+                'pdf_content_type': 'application/pdf',
+                'signed_pdf': Binary(request_data.get('signed_pdf') or b''),
+            },
+            'signup_token_hash': signup_token_hash,
+            'signup_token_created_at': token_created_at,
+            'signup_token_expires_at': token_expires_at,
+            'signup_token_used_at': None,
+            'updated_at': signed_at,
+        }
+
+        with self.client.start_session() as session:
+            existing_user = self._users.find_one({'id': email}, session=session)
+            if self._is_active_user_document(existing_user):
+                return (1, "an active account already exists for this email")
+
+            if existing_user:
+                pending_user_update['role'] = existing_user.get(
+                    'role', LeotestUserRoles.USER.value)
+                pending_user_update['created_at'] = existing_user.get(
+                    'created_at', signed_at)
+                self._users.update_one({
+                    '_id': existing_user['_id']
+                }, {
+                    '$set': pending_user_update
+                }, session=session)
+            else:
+                pending_user_update['created_at'] = signed_at
+                self._users.insert_one(pending_user_update, session=session)
+
+        return (0, "access request recorded")
+
+    def update_access_request_email_status(self, email, email_status, status_at):
+        email = email.strip().lower()
+        status_at = self._coerce_datetime(status_at)
+        status_field = 'email_sent_at' if email_status == 'sent' else 'email_failed_at'
+
+        with self.client.start_session() as session:
+            result = self._users.update_one({
+                'id': email,
+                'registration_status': {'$in': list(self.PENDING_REGISTRATION_STATES)}
+            }, {
+                '$set': {
+                    'access_request.email_status': email_status,
+                    'access_request.%s' % status_field: status_at,
+                    'access_request.updated_at': status_at,
+                    'updated_at': status_at
+                }
+            }, session=session)
+
+        if result.matched_count == 0:
+            return (1, "pending access request not found")
+        return (0, "access request email status updated")
+
+    def get_registration_invite(self, signup_token_hash):
+        with self.client.start_session() as session:
+            invite = self._users.find_one({
+                'signup_token_hash': signup_token_hash,
+                'registration_status': {'$in': list(self.PENDING_REGISTRATION_STATES)},
+                'signup_token_used_at': None,
+            }, session=session)
+
+        if not invite:
+            return (1, "signup link is invalid or has already been used", None)
+
+        expires_at = invite.get('signup_token_expires_at')
+        if expires_at:
+            expires_at = self._coerce_datetime(expires_at)
+            invite['signup_token_expires_at'] = expires_at
+            if expires_at < time_now():
+                return (1, "signup link has expired", None)
+
+        return (0, "registration invite found", invite)
+
+    def activate_signup_user(self, signup_token_hash, email, name, team,
+                             password_hash, role, signup_token_used_at):
+        email = email.strip().lower()
+        used_at = self._coerce_datetime(signup_token_used_at)
+
+        with self.client.start_session() as session:
+            invite = self._users.find_one({
+                'signup_token_hash': signup_token_hash,
+                'registration_status': {'$in': list(self.PENDING_REGISTRATION_STATES)},
+                'signup_token_used_at': None,
+            }, session=session)
+
+            if not invite:
+                return (1, "signup link is invalid or has already been used")
+
+            if invite.get('id') != email:
+                return (1, "signup link does not match this email address")
+
+            expires_at = invite.get('signup_token_expires_at')
+            if expires_at:
+                expires_at = self._coerce_datetime(expires_at)
+                if expires_at < time_now():
+                    return (1, "signup link has expired")
+
+            self._users.update_one({
+                '_id': invite['_id']
+            }, {
+                '$set': {
+                    'id': email,
+                    'name': name,
+                    'team': team,
+                    'role': role,
+                    'access_token': password_hash,
+                    'static_access_token': password_hash,
+                    'registration_status': 'active',
+                    'access_request_status': 'registered',
+                    'signup_token_used_at': used_at,
+                    'updated_at': used_at
+                },
+                '$unset': {
+                    'signup_token_hash': '',
+                    'signup_token_expires_at': ''
+                }
+            }, session=session)
+
+        return (0, "user registered")
 
     # TODO: 'nodeid' is a foreign key, check for consistency
     def add_job(self, job: LeotestJob) -> None:
