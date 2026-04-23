@@ -26,7 +26,7 @@ class LeotestClient:
     def __init__(self,
         grpc_hostname='localhost', 
         grpc_port=50051, userid='admin', access_token='', jwt_access_token='',
-        conn_retry_num=10, conn_retry_wait=3, timeout=5):
+        conn_retry_num=3, conn_retry_wait=3, timeout=5):
 
         self.grpc_stub = None
         self.grpc_hostname = grpc_hostname 
@@ -41,14 +41,10 @@ class LeotestClient:
         self.init_grpc_client()
 
 
-    def _retry(self, forever=True): 
-        # TODO: setting forever=True is a workaround to avoid node exits.
-        # If any request fails after retries have expired, an exception is generated,
-        # causing the node to exit. Ideally, for non-dertrimental requests, the 
-        # thread should just exit without generating an exception. 
-        # Enable better error handling in future to allow only important requests 
-        # to try forever (like heartbeat and job gets), and for rest of the requests, exit silently 
-        # after retries have been used. 
+    def _retry(self, forever=False):
+        # Default to bounded retries for request/response flows.
+        # Long-lived node-loop calls that genuinely need persistence should opt
+        # into forever=True explicitly at the call site.
         
         def after_attempt(retry_state):
             log.warning("gRPC error (attempt %d): %s", 
@@ -735,4 +731,3 @@ class LeotestClient:
         message.start = start 
         message.end = end 
         return self.grpc_stub.get_scheduled_runs(message, timeout=self.timeout)
-
