@@ -9,7 +9,7 @@ import common.leotest_pb2_grpc as pb2_grpc
 import common.leotest_pb2 as pb2
 from common.utils import StorageDirectoryClient, time_now
 
-from tenacity import Retrying, retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+from tenacity import Retrying, retry, stop_after_attempt, wait_fixed, retry_if_exception
 from google.protobuf.json_format import Parse
 from google.protobuf.json_format import MessageToDict
 from dateutil.parser import parse as datetimeParse 
@@ -46,6 +46,20 @@ class LeotestClient:
         # Long-lived node-loop calls that genuinely need persistence should opt
         # into forever=True explicitly at the call site.
         
+        def should_retry(exc):
+            if not isinstance(exc, grpc.RpcError):
+                return False
+            try:
+                code = exc.code()
+            except Exception:
+                return False
+            return code in {
+                grpc.StatusCode.UNAVAILABLE,
+                grpc.StatusCode.DEADLINE_EXCEEDED,
+                grpc.StatusCode.RESOURCE_EXHAUSTED,
+                grpc.StatusCode.ABORTED,
+            }
+
         def after_attempt(retry_state):
             log.warning("gRPC error (attempt %d): %s", 
                         retry_state.attempt_number,
@@ -60,12 +74,12 @@ class LeotestClient:
             return Retrying(
                 stop=stop_after_attempt(self.conn_retry_num),
                 wait=wait_fixed(self.conn_retry_wait),
-                retry=retry_if_exception_type((grpc.RpcError)),
+                retry=retry_if_exception(should_retry),
                 after=after_attempt)
         else:
             return Retrying(
                 wait=wait_fixed(self.conn_retry_wait),
-                retry=retry_if_exception_type((grpc.RpcError)),
+                retry=retry_if_exception(should_retry),
                 after=after_attempt)
     
 
@@ -371,21 +385,19 @@ class LeotestClient:
                 message = pb2.message_get_job_by_id(jobid=jobid)
                 return self.grpc_stub.get_job_by_id(message, timeout=self.timeout)
 
-    def get_jobs_by_userid(self, userid):
+    def get_jobs_by_userid(self, userid, forever=False):
         """Send a request to get job details deployed by a user with the given user ID.
         """
-        # since this is used by the main node loop, set forever=True
-        for attempt in self._retry(forever=True):
+        for attempt in self._retry(forever=forever):
             with attempt:
                 log.info('sending request to get jobs by userid (userid=%s)' % (userid))
                 message = pb2.message_get_jobs_by_userid(userid=userid)
                 return self.grpc_stub.get_jobs_by_userid(message, timeout=self.timeout)    
 
-    def get_jobs_by_nodeid(self, nodeid):
+    def get_jobs_by_nodeid(self, nodeid, forever=False):
         """Send a request to get job details deployed on the node with the given node ID.
         """
-        # since this is used by the main node loop, set forever=True
-        for attempt in self._retry(forever=True):
+        for attempt in self._retry(forever=forever):
             with attempt:
                 log.info('sending request to get jobs by nodeid (nodeid=%s)' % (nodeid))
                 message = pb2.message_get_jobs_by_nodeid(nodeid=nodeid)
@@ -616,6 +628,30 @@ class LeotestClient:
         bandwidth_limits_json=None, availability_history_json=None):
         """update node"""
 
+        for attempt in self._retry():
+            with attempt:
+                return self._update_node_once(
+                    nodeid=nodeid,
+                    name=name,
+                    description=description,
+                    last_active=last_active,
+                    coords=coords,
+                    location=location,
+                    provider=provider,
+                    public_ip=public_ip,
+                    owner=owner,
+                    scheduling_enabled=scheduling_enabled,
+                    registered_at=registered_at,
+                    last_status_change=last_status_change,
+                    bandwidth_limits_json=bandwidth_limits_json,
+                    availability_history_json=availability_history_json)
+
+    def _update_node_once(self, nodeid, name=None, description=None,
+        last_active=None, coords=None, location=None, provider=None,
+        public_ip=None, owner=None, scheduling_enabled=None,
+        registered_at=None, last_status_change=None,
+        bandwidth_limits_json=None, availability_history_json=None):
+
         msg = 'sending request to update node=%s with ' % nodeid
 
         message = pb2.message_update_node()
@@ -680,15 +716,17 @@ class LeotestClient:
 
     def set_scavenger_status(self, nodeid, scavenger_mode_active):
         """set scavenger mode"""
-    
-        message = pb2.message_set_scavenger_status()
-        message.nodeid = nodeid
-        message.scavenger_mode_active = scavenger_mode_active
 
-        log.info('sending request to fetch scavenger mode status;' 
-           'nodeid=%s scavenger_mode_active=%s' % (nodeid, scavenger_mode_active))
+        for attempt in self._retry():
+            with attempt:
+                message = pb2.message_set_scavenger_status()
+                message.nodeid = nodeid
+                message.scavenger_mode_active = scavenger_mode_active
 
-        return self.grpc_stub.set_scavenger_status(message, timeout=self.timeout)
+                log.info('sending request to fetch scavenger mode status;'
+                   'nodeid=%s scavenger_mode_active=%s' % (nodeid, scavenger_mode_active))
+
+                return self.grpc_stub.set_scavenger_status(message, timeout=self.timeout)
     
     def get_scavenger_status(self, nodeid):
         """get scavenger mode status"""

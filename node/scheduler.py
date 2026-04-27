@@ -605,7 +605,7 @@ def _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_sched
     client.update_node(nodeid=nodeid, public_ip=get_public_ip())
 
     log.info('fetching jobs from orchestrator')
-    res = MessageToDict(client.get_jobs_by_nodeid(nodeid))
+    res = MessageToDict(client.get_jobs_by_nodeid(nodeid, forever=True))
     # {'exists': True, 'jobs': [{'id': 'test-id-1', 'nodeid': 'test-node', 'params': {'mode': 'docker', 'deploy': 'random deploy', 'execute': 'random execute', 'finish': 'random finish'}, 'schedule': '*/6 * * * *'}, {'id': 'test-id-2', 'nodeid': 'test-node', 'params': {'mode': 'docker', 'deploy': 'random deploy', 'execute': 'random execute', 'finish': 'random finish'}, 'schedule': '*/6 * * 2-10 *'}]}
     print(res)
 
@@ -913,4 +913,3 @@ def scheduler_loop(nodeid,
 
 # jobs = scheduler.get_job_list()
 # print('current jobs: ', jobs)
-

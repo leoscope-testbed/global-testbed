@@ -969,9 +969,8 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         _role = context.creds_role
         role_name = LeotestUserRoles(_role).name
 
+        userid = request.userid
         if _role == LeotestUserRoles.ADMIN.value or _userid == userid:
-
-            userid = request.userid
             log.info("[get_jobs_by_userid] userid=%s" % (userid))
 
             exists, jobs = self.db.get_jobs_by_userid(userid=userid)
