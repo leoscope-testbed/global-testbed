@@ -9,7 +9,10 @@ COPY . /app
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git iperf3 procps tzdata
+    apt-get install -y --no-install-recommends git iperf3 procps tzdata curl gnupg ca-certificates
+
+RUN curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | bash && \
+    apt-get install -y --no-install-recommends speedtest
 
 # Set the timezone to Europe/London
 ENV TZ=Europe/London
@@ -28,7 +31,7 @@ RUN pip install -r starlink-grpc-tools/requirements.txt
 RUN pip install -r requirements.txt
 
 # Remove git and clean up apt cache to reduce image size
-RUN apt-get purge -y git && \
+RUN apt-get purge -y git curl gnupg && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

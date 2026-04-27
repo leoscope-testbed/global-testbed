@@ -36,12 +36,14 @@ client_name = os.environ.get('CLIENT_NAME', 'Unknown')
 upload_url = os.environ.get('UPLOAD_URL', 'http://example.com/upload')
 IPERF_SERVER = os.environ.get('IPERF_SERVER', 'iperf.example.com')
 IPERF_PORT = os.environ.get('IPERF_PORT', '2025')
+SPEEDTEST_ENABLED = os.environ.get('SPEEDTEST_ENABLED', 'true').lower() in {'1', 'true', 'yes', 'on'}
 
 # Log the environment variables at startup
 logging.info(f"Client Name: {client_name}")
 logging.info(f"Upload URL: {upload_url}")
 logging.info(f"Iperf Server: {IPERF_SERVER}")
 logging.info(f"Iperf Port: {IPERF_PORT}")
+logging.info(f"Speedtest Enabled: {SPEEDTEST_ENABLED}")
 
 
 async def zip_file(file_path):
@@ -219,6 +221,36 @@ async def schedule_iperf_tests(scheduler):
             logging.warning("Sleep duration is non-positive. Correcting to 60 seconds.")
             await asyncio.sleep(60)
 
+
+async def schedule_speedtest_tests(scheduler):
+    """
+    Schedule Ookla Speedtest once every hour. This becomes the default dashboard
+    throughput source while the legacy iperf cadence stays in place.
+    """
+    if not SPEEDTEST_ENABLED:
+        logging.info("Speedtest scheduling is disabled.")
+        return
+
+    now = datetime.datetime.now()
+    scheduler.add_job(
+        run_speedtest,
+        trigger=DateTrigger(run_date=now)
+    )
+    logging.info(f"Scheduled initial Speedtest at {now.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    while True:
+        now = datetime.datetime.now()
+        next_hour = now.replace(minute=0, second=0, microsecond=0) + datetime.timedelta(hours=1)
+        remaining_seconds_in_hour = int((next_hour - now).total_seconds())
+        test_delay = random.randint(0, max(remaining_seconds_in_hour - 180, 0))
+        speedtest_time = now + datetime.timedelta(seconds=test_delay)
+        scheduler.add_job(
+            run_speedtest,
+            trigger=DateTrigger(run_date=speedtest_time)
+        )
+        logging.info(f"Scheduled Speedtest at {speedtest_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        await asyncio.sleep(max((next_hour - now).total_seconds(), 60))
+
 async def run_iperf_test(mode):
     """
     Run an iperf test in the specified mode ('uplink' or 'downlink').
@@ -252,6 +284,33 @@ async def run_iperf_test(mode):
             logging.error(f"Output: {output}")
     except Exception as e:
         logging.error(f"An unexpected error occurred during iperf {mode} test: {e}")
+
+
+async def run_speedtest():
+    """
+    Run Ookla Speedtest CLI and upload its JSON result for dashboard ingestion.
+    """
+    command = [
+        'speedtest',
+        '--format=json',
+        '--accept-license',
+        '--accept-gdpr'
+    ]
+    date_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    filename = f"speedtest_{client_name}_{date_str}.txt"
+    file_path = os.path.join(data_dir, filename)
+    try:
+        returncode, output = await run_subprocess(command)
+        if returncode == 0:
+            async with aiofiles.open(file_path, 'w') as file:
+                await file.write(output)
+            logging.info(f"Speedtest completed and saved to {file_path}")
+            await send_file(file_path)
+        else:
+            logging.error(f"Speedtest failed with return code {returncode}")
+            logging.error(f"Output: {output}")
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during Speedtest: {e}")
 
 async def run_subprocess(command, cwd=None):
     """
@@ -343,6 +402,9 @@ async def main():
 
     # Schedule iperf tests
     asyncio.create_task(schedule_iperf_tests(scheduler))
+
+    # Schedule Speedtest throughput measurements for dashboard panels
+    asyncio.create_task(schedule_speedtest_tests(scheduler))
 
     # Start the cleanup task
     asyncio.create_task(cleanup_old_files())

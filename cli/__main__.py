@@ -59,7 +59,8 @@ def main():
     user_parser.add_argument("--role", type=str, required=False, 
                                             choices=["admin", 
                                                     "user", "user_priv", 
-                                                    "node", "node_priv"], 
+                                                    "node", "node_priv",
+                                                    "node_owner"],
                                             help='role')
     user_parser.add_argument("--team", type=str, required=False, 
                                             help='team')

@@ -6,6 +6,7 @@ Contains code for running the orchestrator, defines all the API functionalities 
 import grpc
 import logging
 import hashlib
+import os
 from functools import wraps
 from concurrent import futures
 
@@ -31,6 +32,10 @@ logging.basicConfig(
     format="%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s")
 
 log = logging.getLogger(__name__)
+
+LEOSCOPE_NODE_ADMIN_USERID = os.getenv(
+    "LEOSCOPE_NODE_ADMIN_USERID", None
+).strip().lower()
 
 class CheckToken(object):
     """Decorator that parses the gRPC headers to fetch the access token (either 
@@ -575,6 +580,34 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             log.info("[verify_jwt] exception=%s" % str(e))
             return None 
 
+    def _node_document_for_auth(self, nodeid):
+        nodes = self.db.get_nodes(nodeid=nodeid, active=False)
+        return nodes[0] if nodes else None
+
+    def _is_leoscope_node_admin(self, userid):
+        return bool(
+            userid and userid.strip().lower() == LEOSCOPE_NODE_ADMIN_USERID
+        )
+
+    def _can_manage_node(self, userid, role, nodeid):
+        if role == LeotestUserRoles.ADMIN.value:
+            return True
+
+        if self._is_leoscope_node_admin(userid):
+            return True
+
+        if nodeid == userid and role == LeotestUserRoles.NODE.value:
+            return True
+
+        if role not in (
+            LeotestUserRoles.USER_PRIV.value,
+            LeotestUserRoles.NODE_OWNER.value,
+        ):
+            return False
+
+        node = self._node_document_for_auth(nodeid)
+        return bool(node and node.get('owner') == userid)
+
     @CheckToken(pb2.message_schedule_job_response, 
                 grpc.StatusCode.UNAUTHENTICATED, 
                 "Invalid token")
@@ -626,6 +659,32 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
 
         # print(id, nodeid, type_name, params, schedule) 
         if type_name.lower() == "cron" or type_name.lower() == "atq":
+            node_doc = self._node_document_for_auth(nodeid)
+            if not node_doc:
+                return pb2.message_schedule_job_response(**{
+                    'state': 1,
+                    'message': 'node with given id does not exist'
+                })
+
+            if not node_doc.get('scheduling_enabled', True):
+                return pb2.message_schedule_job_response(**{
+                    'state': 1,
+                    'message': 'node is inactive for scheduling by its owner'
+                })
+
+            if server:
+                server_doc = self._node_document_for_auth(server)
+                if not server_doc:
+                    return pb2.message_schedule_job_response(**{
+                        'state': 1,
+                        'message': 'server node with given id does not exist'
+                    })
+                if not server_doc.get('scheduling_enabled', True):
+                    return pb2.message_schedule_job_response(**{
+                        'state': 1,
+                        'message': 'server node is inactive for scheduling by its owner'
+                    })
+
             if overhead==True:
                 jobs = []
                 exists1 = None 
@@ -1293,11 +1352,22 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         role = context.creds_role
         
         log.info('[register_node] nodeid=%s' % request.node.nodeid)
-        if role==LeotestUserRoles.ADMIN.value:
-            
+        if self._is_leoscope_node_admin(userid):
+            role_allowed = True
+        else:
+            role_allowed = role in (
+                LeotestUserRoles.ADMIN.value,
+                LeotestUserRoles.USER_PRIV.value,
+                LeotestUserRoles.NODE_OWNER.value,
+            )
+
+        if role_allowed:
             nodeid = request.node.nodeid
             name = request.node.name
             team = request.node.description
+            node_data = MessageToDict(request)['node']
+            if role != LeotestUserRoles.ADMIN.value or not node_data.get('owner'):
+                node_data['owner'] = userid
 
             hl = hashlib.sha256()
             hl.update(nodeid.encode('utf-8'))
@@ -1312,7 +1382,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             ret = self.db.add_user(node_user)
 
             state, message = self.db.register_node(
-                                LeotestNode(**MessageToDict(request)['node']))
+                                LeotestNode(**node_data))
             
             if state == 0:
                 message += " access_token=%s" % access_token
@@ -1349,11 +1419,12 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         userid = context.creds_userid
         role = context.creds_role
 
-        if role==LeotestUserRoles.ADMIN.value:
+        if self._can_manage_node(userid, role, nodeid):
             state, message = self.db.delete_node(nodeid=nodeid, 
                                                 delete_jobs=delete_jobs)
             
-            self.db.delete_user(LeotestUser(nodeid, '', '', '')) 
+            if role == LeotestUserRoles.ADMIN.value:
+                self.db.delete_user(LeotestUser(nodeid, '', '', ''))
         else:
             state = 1
             role_name = LeotestUserRoles(role).name
@@ -1389,11 +1460,14 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         provider = request.provider if request.HasField('provider') else None
         active = request.active if request.HasField('active') else False
         activeThres = request.activeThres if request.HasField('activeThres') else 600
+        owner = request.owner if request.HasField('owner') else None
 
         log.info('[get_nodes] nodeid=%s location=%s name=%s provider=%s active=%s'
-                ' activeThres=%s' % (nodeid, location, name, provider, active, activeThres))
+                ' activeThres=%s owner=%s' % (nodeid, location, name, provider,
+                                              active, activeThres, owner))
 
-        nodes = self.db.get_nodes(nodeid, location, name, provider, active, activeThres)
+        nodes = self.db.get_nodes(nodeid, location, name, provider, active,
+                                  activeThres, owner)
         log.info('nodes=%s' % str(nodes))
         result = {'nodes': nodes}
         return pb2.message_get_nodes_response(**result)
@@ -1420,26 +1494,51 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         name = request.name if request.HasField('name') else None
         description = request.description if request.HasField('description') else None
         last_active = request.last_active if request.HasField('last_active') else None
-        coords = request.last_active if request.HasField('coords') else None
+        coords = request.coords if request.HasField('coords') else None
         location = request.location if request.HasField('location') else None
         provider = request.provider if request.HasField('provider') else None
         public_ip = request.public_ip if request.HasField('public_ip') else None
+        owner = request.owner if request.HasField('owner') else None
+        scheduling_enabled = request.scheduling_enabled if request.HasField('scheduling_enabled') else None
+        registered_at = request.registered_at if request.HasField('registered_at') else None
+        last_status_change = request.last_status_change if request.HasField('last_status_change') else None
+        bandwidth_limits_json = request.bandwidth_limits_json if request.HasField('bandwidth_limits_json') else None
+        availability_history_json = request.availability_history_json if request.HasField('availability_history_json') else None
+        userid = context.creds_userid
+        role = context.creds_role
+        role_name = LeotestUserRoles(role).name
 
         log.info('[update_node] nodeid=%s' 
                    'name=%s description=%s last_active=%s coords=%s location=%s' 
-                'provider=%s public_ip=%s'
+                'provider=%s public_ip=%s owner=%s scheduling_enabled=%s'
                 % (nodeid, name, description, last_active, coords, location,
-                       provider, public_ip))
+                       provider, public_ip, owner, scheduling_enabled))
 
-        state, message = self.db.update_node(
-            nodeid=nodeid, 
-            name=name, 
-            description=description, 
-            last_active=last_active,
-            coords=coords,
-            location=location,
-            provider=provider,
-            public_ip=public_ip)
+        if owner is not None and (
+            role != LeotestUserRoles.ADMIN.value
+            and not self._is_leoscope_node_admin(userid)
+        ):
+            state = 1
+            message = "permission denied: only admins can transfer node ownership"
+        elif self._can_manage_node(userid, role, nodeid):
+            state, message = self.db.update_node(
+                nodeid=nodeid,
+                name=name,
+                description=description,
+                last_active=last_active,
+                coords=coords,
+                location=location,
+                provider=provider,
+                public_ip=public_ip,
+                owner=owner,
+                scheduling_enabled=scheduling_enabled,
+                registered_at=registered_at,
+                last_status_change=last_status_change,
+                bandwidth_limits_json=bandwidth_limits_json,
+                availability_history_json=availability_history_json)
+        else:
+            state = 1
+            message = "permission denied: userid=%s and role=%s" % (userid, role_name)
         
         result = {
             'state': state,
@@ -1475,7 +1574,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                             % (nodeid, userid, role_name, scavenger_mode_active))
 
 
-        if (nodeid==userid and role == LeotestUserRoles.NODE.value) or role == LeotestUserRoles.ADMIN.value: 
+        if self._can_manage_node(userid, role, nodeid):
             state, message = self.db.set_scavenger_status(nodeid, scavenger_mode_active)
         
         else:
@@ -1514,7 +1613,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
 
         log.info(ret)
 
-        if ret:
+        if ret is not None:
             result = {
                 'found': True,
                 'scavenger_mode_active': ret

@@ -542,7 +542,9 @@ class LeotestClient:
                                 % (runid, remote_path, local_path))
                         blob_storage.download(remote_path, local_path)
     
-    def register_node(self, nodeid, name, description, coords, location, provider='starlink'):
+    def register_node(self, nodeid, name, description, coords, location,
+                      provider='starlink', owner='', scheduling_enabled=True,
+                      bandwidth_limits_json='[]'):
         """register node"""
 
         log.info('sending request to register node %s' % nodeid)
@@ -552,7 +554,10 @@ class LeotestClient:
             'description': description, 
             'coords': coords,
             'location': location, 
-            'provider': provider
+            'provider': provider,
+            'owner': owner or '',
+            'scheduling_enabled': scheduling_enabled,
+            'bandwidth_limits_json': bandwidth_limits_json or '[]'
         }
         message = pb2.message_register_node(node=node)
         return self.grpc_stub.register_node(message, timeout=self.timeout)
@@ -568,7 +573,7 @@ class LeotestClient:
         return self.grpc_stub.delete_node(message, timeout=self.timeout)
 
     def get_nodes(self, nodeid=None, location=None, name=None, provider=None, 
-                        active=None, activeThres=None):
+                        active=None, activeThres=None, owner=None):
         """get nodes"""
 
         msg = 'sending request to fetch nodes with '
@@ -598,11 +603,17 @@ class LeotestClient:
             message.activeThres = activeThres
             msg += 'activeThres=%s ' % activeThres
 
+        if owner:
+            message.owner = owner
+            msg += 'owner=%s ' % owner
+
         log.info(msg)
         return self.grpc_stub.get_nodes(message, timeout=self.timeout)
     
     def update_node(self, nodeid, name=None, description=None, last_active=None,
-        coords=None, location=None, provider=None, public_ip=None):
+        coords=None, location=None, provider=None, public_ip=None, owner=None,
+        scheduling_enabled=None, registered_at=None, last_status_change=None,
+        bandwidth_limits_json=None, availability_history_json=None):
         """update node"""
 
         msg = 'sending request to update node=%s with ' % nodeid
@@ -639,6 +650,30 @@ class LeotestClient:
         if public_ip:
             message.public_ip = public_ip
             msg += 'public_ip=%s ' % public_ip
+
+        if owner is not None:
+            message.owner = owner
+            msg += 'owner=%s ' % owner
+
+        if scheduling_enabled is not None:
+            message.scheduling_enabled = scheduling_enabled
+            msg += 'scheduling_enabled=%s ' % scheduling_enabled
+
+        if registered_at:
+            message.registered_at = registered_at
+            msg += 'registered_at=%s ' % registered_at
+
+        if last_status_change:
+            message.last_status_change = last_status_change
+            msg += 'last_status_change=%s ' % last_status_change
+
+        if bandwidth_limits_json is not None:
+            message.bandwidth_limits_json = bandwidth_limits_json
+            msg += 'bandwidth_limits_json=%s ' % bandwidth_limits_json
+
+        if availability_history_json is not None:
+            message.availability_history_json = availability_history_json
+            msg += 'availability_history_json=%s ' % availability_history_json
 
         log.info(msg)
         return self.grpc_stub.update_node(message, timeout=self.timeout)

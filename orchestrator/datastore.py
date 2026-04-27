@@ -10,6 +10,7 @@ from pymongo.errors import ConnectionFailure, DuplicateKeyError
 from bson.binary import Binary
 from typing import List
 import logging 
+import json
 
 from dateutil.parser import parse as datetimeParse
 import datetime 
@@ -49,6 +50,9 @@ class LeotestDatastoreMongo:
         self._nodes.create_index([('nodeid', ASCENDING),
                                 ('last_active', DESCENDING)],
                                 name='node_query_index')
+        self._nodes.create_index([('owner', ASCENDING),
+                                ('nodeid', ASCENDING)],
+                                name='node_owner_query_index')
         
         self._tasks.create_index('expire_at', expireAfterSeconds=0)
         self._users.create_index('id', name='user_id_index')
@@ -628,6 +632,12 @@ class LeotestDatastoreMongo:
     def register_node(self, node: LeotestNode):
         """register a node"""
         document = node.document()
+        now = time_now().replace(microsecond=0)
+        document.setdefault('registered_at', now)
+        document.setdefault('last_status_change', now)
+        document.setdefault('scheduling_enabled', True)
+        document.setdefault('bandwidth_limits_json', '[]')
+        document.setdefault('availability_history_json', '[]')
         with self.client.start_session() as session: 
             exists = self._nodes.find_one({"nodeid": document['nodeid']}, 
                                                     session=session)
@@ -654,24 +664,98 @@ class LeotestDatastoreMongo:
         
         return (0, "node deleted")
 
+    def _availability_history_from_node(self, node):
+        raw = node.get('availability_history_json', '[]')
+        if isinstance(raw, list):
+            return raw
+        try:
+            data = json.loads(raw or '[]')
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    def _append_heartbeat_history(self, node, now, active_thres=600):
+        history = self._availability_history_from_node(node)
+        previous_active = node.get('last_active')
+        if not isinstance(previous_active, datetime.datetime):
+            try:
+                previous_active = datetimeParse(str(previous_active))
+            except Exception:
+                previous_active = None
+
+        status_changed = False
+        if not history:
+            history.append({
+                'state': 'online',
+                'start': str(now),
+                'end': str(now)
+            })
+            return json.dumps(history[-500:]), True
+
+        if previous_active:
+            offline_start = previous_active + datetime.timedelta(seconds=active_thres)
+            if now > offline_start:
+                if history[-1].get('state') == 'online':
+                    history[-1]['end'] = str(offline_start)
+                history.append({
+                    'state': 'offline',
+                    'start': str(offline_start),
+                    'end': str(now)
+                })
+                history.append({
+                    'state': 'online',
+                    'start': str(now),
+                    'end': str(now)
+                })
+                status_changed = True
+            elif history[-1].get('state') == 'online':
+                history[-1]['end'] = str(now)
+            else:
+                history.append({
+                    'state': 'online',
+                    'start': str(now),
+                    'end': str(now)
+                })
+                status_changed = True
+        else:
+            history.append({
+                'state': 'online',
+                'start': str(now),
+                'end': str(now)
+            })
+            status_changed = True
+
+        return json.dumps(history[-500:]), status_changed
+
     def mark_node(self, nodeid):
         with self.client.start_session() as session: 
             exists = self._nodes.find_one({"nodeid": nodeid}, session=session)
 
             if not exists:
                 return (1, 'node with given id does not exist')
+
+            now = time_now().replace(microsecond=0)
+            history_json, status_changed = self._append_heartbeat_history(
+                exists, now)
+            updates = {
+                'last_active': now,
+                'availability_history_json': history_json
+            }
+            if status_changed:
+                updates['last_status_change'] = now
             
             self._nodes.update_one({
                 'nodeid': nodeid
             }, {
-                '$set': {'last_active': time_now()}
+                '$set': updates
             },
             upsert=False, session=session)
         
         return (0, "updated node successfully")
 
     def get_nodes(self, nodeid=None, location=None, name=None, 
-                        provider=None, active=True, activeThres=600):
+                        provider=None, active=True, activeThres=600,
+                        owner=None):
         """get nodes"""
         query={}
         
@@ -686,6 +770,9 @@ class LeotestDatastoreMongo:
         
         if provider:
             query["provider"] = provider 
+
+        if owner:
+            query["owner"] = owner
         
         if active:
             thres = time_now() - datetime.timedelta(seconds=activeThres)
@@ -727,7 +814,13 @@ class LeotestDatastoreMongo:
             coords=None,
             location=None,
             provider=None,
-            public_ip=None):
+            public_ip=None,
+            owner=None,
+            scheduling_enabled=None,
+            registered_at=None,
+            last_status_change=None,
+            bandwidth_limits_json=None,
+            availability_history_json=None):
         
         """update node"""
         updates={}
@@ -752,6 +845,25 @@ class LeotestDatastoreMongo:
         
         if public_ip:
             updates["public_ip"] = public_ip
+
+        if owner is not None:
+            updates["owner"] = owner
+
+        if scheduling_enabled is not None:
+            updates["scheduling_enabled"] = scheduling_enabled
+            updates["last_status_change"] = time_now().replace(microsecond=0)
+
+        if registered_at:
+            updates["registered_at"] = datetimeParse(str(registered_at))
+
+        if last_status_change:
+            updates["last_status_change"] = datetimeParse(str(last_status_change))
+
+        if bandwidth_limits_json is not None:
+            updates["bandwidth_limits_json"] = bandwidth_limits_json
+
+        if availability_history_json is not None:
+            updates["availability_history_json"] = availability_history_json
 
         log.info('[update_node] nodeid=%s updates=%s' % (nodeid, str(updates)))
         with self.client.start_session() as session:

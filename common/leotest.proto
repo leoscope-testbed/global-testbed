@@ -176,6 +176,7 @@ enum user_roles {
     NODE = 2;
     USER_PRIV = 3;
     NODE_PRIV = 4;
+    NODE_OWNER = 5;
 }
 
 message message_register_user {
@@ -473,6 +474,12 @@ message _node {
     optional string jobs = 8; 
     bool scavenger_mode_active = 9;
     string public_ip = 10;
+    string owner = 11;
+    bool scheduling_enabled = 12;
+    optional string registered_at = 13;
+    optional string last_status_change = 14;
+    optional string bandwidth_limits_json = 15;
+    optional string availability_history_json = 16;
 }
 
 message message_register_node {
@@ -494,6 +501,12 @@ message message_update_node {
     optional string location = 6; 
     optional string provider = 7; 
     optional string public_ip = 8;
+    optional string owner = 9;
+    optional bool scheduling_enabled = 10;
+    optional string registered_at = 11;
+    optional string last_status_change = 12;
+    optional string bandwidth_limits_json = 13;
+    optional string availability_history_json = 14;
 }
 
 message message_update_node_response {
@@ -508,6 +521,7 @@ message message_get_nodes {
     optional string provider = 4; 
     optional bool active = 5; 
     optional int32 activeThres = 6;  
+    optional string owner = 7;
 }
 
 message message_get_nodes_response {
@@ -633,7 +647,6 @@ message message_get_scheduled_runs_response {
     string message = 2; 
     repeated run_event events = 3;  
 }
-
 
 
 

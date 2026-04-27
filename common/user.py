@@ -7,6 +7,7 @@ class LeotestUserRoles(Enum):
     NODE = 2
     USER_PRIV = 3
     NODE_PRIV = 4
+    NODE_OWNER = 5
 
 class LeotestUser:
     def __init__(self, id, name, role, team, 
