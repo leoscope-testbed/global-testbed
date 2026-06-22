@@ -11,8 +11,8 @@ from functools import wraps
 from concurrent import futures
 
 from jose import JWTError, jwt
-from datetime import datetime, timedelta 
-from dateutil.parser import parse as datetimeParse 
+from datetime import datetime, timedelta
+from dateutil.parser import parse as datetimeParse
 from google.protobuf.json_format import MessageToDict
 
 from orchestrator.datastore import LeotestDatastoreMongo
@@ -26,16 +26,16 @@ from common.job import LeotestTask, LeotestJobCron, LeotestJobAtq, LeotestRun,\
 from common.user import LeotestUser, LeotestUserRoles
 from common.node import LeotestNode
 from common.trigger import verify_trigger_default
+from common import config as cfg
 
 logging.basicConfig(
-    level=logging.INFO, 
+    level=logging.INFO,
     format="%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s")
 
 log = logging.getLogger(__name__)
 
-LEOSCOPE_NODE_ADMIN_USERID = os.getenv(
-    "LEOSCOPE_NODE_ADMIN_USERID", None
-).strip().lower()
+# BUG FIX: os.getenv returns None when not set; calling .strip() on None crashes at import time.
+LEOSCOPE_NODE_ADMIN_USERID = cfg.NODE_ADMIN_USERID
 
 class CheckToken(object):
     """Decorator that parses the gRPC headers to fetch the access token (either 
@@ -161,15 +161,15 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         _role = context.creds_role
         _role_name = LeotestUserRoles(_role).name
 
-        log.info("[heartbeat] userid=%s nodeid=%s" % (_userid, nodeid))
+        log.debug("[heartbeat] userid=%s nodeid=%s role=%s", _userid, nodeid, _role_name)
 
         if nodeid == _userid:
-            log.info("[heartbeat] marked nodeid=%s" % (nodeid))
             self.db.mark_node(nodeid)
+            log.info("[heartbeat] OK nodeid=%s", nodeid)
             result = {'received': True}
         else:
-            log.info("[heartbeat] nodeid (%s) and userid (%s) do not match, not marking." 
-                            % (nodeid, _userid))
+            log.warning("[heartbeat] REJECTED nodeid=%s does not match auth userid=%s",
+                        nodeid, _userid)
             result = {'received': False}
         return pb2.message_heartbeat_response(**result)
 
@@ -704,7 +704,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                             " existing jobs found. Checking conflicts..." 
                             % (id, nodeid, type_name))
 
-                    print('jobs', jobs)
+                    log.debug("[schedule_job] existing jobs for nodeid=%s: %s", nodeid, jobs)
                     job_list = []
                     for job in jobs:
                         if job.overhead==True:
@@ -793,7 +793,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                                             server=server,
                                             trigger=trigger,
                                             config=config)
-                    print("Orchestrator : Job added %s" %(id)) 
+                    log.info("[schedule_job] adding job to datastore: jobid=%s", id)
                     state, msg = self.db.add_job(job)
 
         result = {
@@ -918,18 +918,22 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         """
 
         jobid = request.jobid
-        log.info("[get_job_by_id] jobid=%s" % (jobid))
+        log.info("[get_job_by_id] jobid=%s", jobid)
         exists, job = self.db.get_job_by_id(jobid)
-        _type = pb2.job_type.Value(job.type.upper())
-        schedule = job.get_cron_string() if job.type.upper() == "CRON" else "" 
 
+        # BUG FIX: _type / schedule must be computed INSIDE the exists guard;
+        # when exists=False, job is None and job.type.upper() raises AttributeError.
         if exists:
+            _type = pb2.job_type.Value(job.type.upper())
+            schedule = job.get_cron_string() if job.type.upper() == "CRON" else ""
+            log.info("[get_job_by_id] found jobid=%s nodeid=%s userid=%s type=%s",
+                     jobid, job.nodeid, job.userid, job.type)
             result = {
                 'exists': True,
                 'id': job.jobid,
                 'nodeid': job.nodeid,
                 'userid': job.userid,
-                'start_date': job.start_date, 
+                'start_date': job.start_date,
                 'end_date': job.end_date,
                 'type': _type,
                 'params': job.job_params,
@@ -940,10 +944,11 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                 'config': job.config
             }
         else:
+            log.warning("[get_job_by_id] jobid=%s not found", jobid)
             result = {
                 'exists': False,
-            }    
-        
+            }
+
         return pb2.message_get_job_by_id_response(**result)
     
 
@@ -1220,18 +1225,20 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         .. todo::
             Allow only users with role ``NODE`` to be able to update run status. 
         """
-        runid = request.run.runid 
-        jobid = request.run.jobid 
-        nodeid = request.run.nodeid 
+        runid = request.run.runid
+        jobid = request.run.jobid
+        nodeid = request.run.nodeid
         userid = request.run.userid
-        start_time = request.run.start_time 
-        end_time = request.run.end_time 
+        start_time = request.run.start_time
+        end_time = request.run.end_time
         last_updated = request.run.last_updated
-        blob_url = request.run.blob_url 
-        status = request.run.status 
+        blob_url = request.run.blob_url
+        status = request.run.status
         status_message = request.run.status_message
 
-        log.info('[update_run] jobid=%s runid=%s' % (jobid, runid))
+        log.info("[update_run] runid=%s jobid=%s nodeid=%s userid=%s status=%s message=%r blob_url=%s",
+                 runid, jobid, nodeid, userid, status, status_message,
+                 blob_url[:60] + "..." if blob_url and len(blob_url) > 60 else blob_url)
 
         run = LeotestRun(
             runid=runid, 
@@ -1251,8 +1258,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             'message': message
         }
 
-        log.info('[update_run] sending reply jobid=%s runid=%s state=%s message=%s' 
-                                % (jobid, runid, str(state), message))
+        log.info("[update_run] reply runid=%s jobid=%s state=%s message=%s", runid, jobid, state, message)
         return pb2.message_update_run_response(**result)
 
     @CheckToken(pb2.message_get_runs_response, 
@@ -1668,9 +1674,10 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                             ttl_secs=ttl_secs)
         task.set_status(status)
 
-        log.info("[schedule_task] type=%s taskid=%s runid=%s jobid=%s nodeid=%s ttl_secs=%s" 
-                        % (_type, taskid, runid, jobid, nodeid, ttl_secs))
+        log.info("[schedule_task] type=%s taskid=%s runid=%s jobid=%s nodeid=%s ttl_secs=%s",
+                 _type, taskid, runid, jobid, nodeid, ttl_secs)
         state, message = self.db.schedule_task(task)
+        log.info("[schedule_task] result: state=%s message=%s taskid=%s", state, message, taskid)
 
         result = {
             'state': state,
@@ -1935,28 +1942,35 @@ class LeotestOrchestrator:
 
     
     def start_grpc_service(self):
-        """Bootsraps the gRPC service of the orchestartor.
-        """
-        log.info("starting grpc service")
-        grpc_service = grpc.server(
-                        futures.ThreadPoolExecutor(
-                                max_workers=self.grpc_max_workers))
-        pb2_grpc.add_LeotestOrchestratorServicer_to_server(
-                        self.grpc_service_instance, grpc_service)
-        
-        # grpc_service.add_insecure_port('%s:%d' % (self.grpc_hostname, 
-        #                                             self.grpc_port))
-        # grpc_service.start()
-        # grpc_service.wait_for_termination()
+        """Bootstrap the gRPC TLS service of the orchestrator."""
+        cfg.log_config_summary()
+        log.info("[orchestrator] starting gRPC service on port %d with %d workers",
+                 self.grpc_port, self.grpc_max_workers)
 
-        with open('certs/server.key', 'rb') as f:
-            private_key = f.read()
-        with open('certs/server.crt', 'rb') as f:
-            certificate_chain = f.read()
+        grpc_service = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=self.grpc_max_workers))
+        pb2_grpc.add_LeotestOrchestratorServicer_to_server(
+            self.grpc_service_instance, grpc_service)
+
+        key_path = cfg.GRPC_KEY_PATH
+        crt_path = cfg.GRPC_CERT_PATH
+        log.info("[orchestrator] loading TLS credentials: key=%s crt=%s", key_path, crt_path)
+        try:
+            with open(key_path, 'rb') as f:
+                private_key = f.read()
+            with open(crt_path, 'rb') as f:
+                certificate_chain = f.read()
+        except FileNotFoundError as exc:
+            log.critical("[orchestrator] TLS certificate file not found: %s — cannot start. "
+                         "Generate certs or set LEOSCOPE_GRPC_KEY_PATH / LEOSCOPE_GRPC_CERT_PATH. "
+                         "Error: %s", exc.filename, exc)
+            raise
 
         server_credentials = grpc.ssl_server_credentials(((private_key, certificate_chain,),))
-        grpc_service.add_secure_port('[::]:50051', server_credentials)
+        listen_addr = f'[::]:{self.grpc_port}'
+        grpc_service.add_secure_port(listen_addr, server_credentials)
         grpc_service.start()
+        log.info("[orchestrator] gRPC server started and listening on %s (TLS)", listen_addr)
         grpc_service.wait_for_termination()
     
     

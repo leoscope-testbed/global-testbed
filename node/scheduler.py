@@ -1,9 +1,10 @@
 import json
 import os
 import time
-import redis 
+import yaml
+import redis
 import docker
-import logging 
+import logging
 import threading
 from multiprocessing import Process
 from datetime import datetime, timedelta
@@ -15,143 +16,144 @@ from common.client import LeotestClient
 from common.job import LeotestJobCron, LeotestJobAtq, LeotestTask
 from google.protobuf.json_format import MessageToDict
 from pymemcache.client.base import Client as memcache_client
+from common import config as cfg
 
-import common.leotest_pb2_grpc as pb2_grpc 
+import common.leotest_pb2_grpc as pb2_grpc
 import common.leotest_pb2 as pb2
 
-from node.trigger import LeotestTriggerMode, LeotestDockerNetworkMonitor,\
-            LeotestGrpcMonitor, LeotestSatelliteMonitor, LeotestWeatherMonitor
+from node.trigger import LeotestTriggerMode, LeotestDockerNetworkMonitor, \
+    LeotestGrpcMonitor, LeotestSatelliteMonitor, LeotestWeatherMonitor
 
 logging.basicConfig(
-    level=logging.INFO, 
+    level=logging.INFO,
     format="%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 
-def kill_all_jobs(client, nodeid, sessionstore, resched_buffer=1800):
-    """imple."""
-    
-    log.info("kill_all_jobs called.")
+def kill_all_jobs(client, nodeid, sessionstore, resched_buffer=cfg.SCHEDULER_RESCHED_BUFFER_SECS):
+    """Stop all running LEOScope overhead containers; abort CRON, reschedule ATQ."""
+    log.info("[scheduler][kill_all_jobs] scavenger eviction triggered: nodeid=%s resched_buffer=%ds",
+             nodeid, resched_buffer)
     docker_client = docker.from_env()
 
     filters = {
-        "label": ["leotest=true", "overhead=true"], 
-        "status": "running" 
+        "label": ["leotest=true", "overhead=true"],
+        "status": "running",
     }
     try:
         container_list = docker_client.containers.list(filters=filters)
+        log.info("[scheduler][kill_all_jobs] found %d overhead containers to evict", len(container_list))
 
         for container in container_list:
-            # update run status 
-            labels = container.labels 
-            runid = labels["runid"]
-            jobid = labels["jobid"]
-            job_type = labels["type"]
-            end_date = labels["end_date"]
+            labels = container.labels
+            runid    = labels.get("runid", "unknown")
+            jobid    = labels.get("jobid", "unknown")
+            job_type = labels.get("type",  "unknown")
+            end_date = labels.get("end_date", "")
+            userid   = labels.get("userid", "")
             client_params = {
-                'runid': runid,
-                'jobid': jobid,
-                'nodeid': nodeid,
-                'start_time': labels["start_time"]
+                "runid":      runid,
+                "jobid":      jobid,
+                "nodeid":     nodeid,
+                "userid":     userid,
+                "start_time": labels.get("start_time", ""),
             }
-            log.info(client_params)
-            res = sessionstore.get(key="%s_executor" % runid)
-            log.info('executor session for runid=%s --> %s' % (runid, str(res)))
+            log.info("[scheduler][kill_all_jobs] evicting container: runid=%s jobid=%s type=%s",
+                     runid, jobid, job_type)
 
+            executor_session_key = "%s_executor" % runid
+            session_val = sessionstore.get(key=executor_session_key)
+            log.info("[scheduler][kill_all_jobs] memcached session for runid=%s → %s",
+                     runid, session_val)
+
+            log.info("[scheduler][kill_all_jobs] stopping container runid=%s", runid)
             container.stop()
             container.remove()
+            log.info("[scheduler][kill_all_jobs] container stopped runid=%s", runid)
 
-            # TODO: Handle a race condition with the executor. As soon as the 
-            # the container exits, the executor starts finishing up the job (artifact upload, clean-up).
-            # So there is a race condition between the reschedule status update by the scheduler (below) 
-            # and the job status update that the executor will initiate. 
+            # Wait for the executor to finish its artifact-upload teardown before
+            # overwriting the run status. Avoids a race where our RESCHEDULED write
+            # gets clobbered by the executor's COMPLETE write a moment later.
             tries = 100
-            while sessionstore.get(key="%s_executor" % runid) != None and tries > 0:
+            while sessionstore.get(key=executor_session_key) is not None and tries > 0:
                 time.sleep(1)
-                log.info('waiting for executor to exit (runid=%s) tries=%d' % (runid, tries))
+                log.info("[scheduler][kill_all_jobs] waiting for executor teardown "
+                         "runid=%s tries_remaining=%d", runid, tries)
                 tries -= 1
 
             if job_type == "cron":
-                log.info('aborting run (scavenger mode is active): runid=%s jobid=%s type=%s' 
-                            % (client_params['runid'], client_params['jobid'], job_type))
-                client.update_run(status='ABORTED', 
-                        status_message='Job aborted: scavenger mode is active.',
-                        **client_params)
-                
+                log.info("[scheduler][kill_all_jobs] ABORTING cron run runid=%s jobid=%s",
+                         runid, jobid)
+                client.update_run(
+                    status="ABORTED",
+                    status_message="Job aborted: scavenger mode is active.",
+                    **client_params)
+
             elif job_type == "atq":
-                log.info('rescheduling job (scavenger mode is active): runid=%s jobid=%s type=%s' 
-                            % (client_params['runid'], client_params['jobid'], job_type))
-                
-
                 starttime = time_now() + timedelta(seconds=int(resched_buffer))
-                endtime = end_date
-                ret = client.reschedule_job_nearest(
-                                            jobid, str(starttime), str(endtime))
+                log.info("[scheduler][kill_all_jobs] RESCHEDULING atq run: "
+                         "runid=%s jobid=%s new_start=%s end_date=%s",
+                         runid, jobid, starttime, end_date)
+                try:
+                    ret = client.reschedule_job_nearest(jobid, str(starttime), str(end_date))
+                    msg = MessageToDict(ret)
+                except Exception:
+                    log.exception("[scheduler][kill_all_jobs] reschedule RPC failed "
+                                  "runid=%s jobid=%s", runid, jobid)
+                    msg = {}
 
-                # message message_reschedule_job_response {
-                #     bool rescheduled = 1; 
-                #     string message = 2; 
-                # }
-
-                terminate = {}
-                msg = MessageToDict(ret)
-                if 'rescheduled' in msg and msg['rescheduled']:
-                    log.info('atq job rescheduled (scavenger mode is active): ' 
-                              'runid=%s jobid=%s type=%s message=%s' 
-                            % (client_params['runid'], client_params['jobid'], job_type, msg['message']))
-                    
-                    terminate['status'] = 'RESCHEDULED'
-                    terminate['reason'] = 'job run rescheduled (scavenger mode is active); reason: %s' % msg['message']
-                
+                if msg.get("rescheduled"):
+                    log.info("[scheduler][kill_all_jobs] atq job rescheduled: "
+                             "runid=%s jobid=%s message=%s", runid, jobid, msg.get("message"))
+                    status  = "RESCHEDULED"
+                    reason  = "job rescheduled (scavenger mode active): %s" % msg.get("message", "")
                 else:
-                    log.info('atq job reschedule failed (scavenger mode is active): ' 
-                              'runid=%s jobid=%s type=%s message=%s' 
-                            % (client_params['runid'], client_params['jobid'], job_type, msg['message']))
-                    
-                    terminate['status'] = 'RESCHEDULE_FAILED'
-                    terminate['reason'] = 'job run reschedule failed (scavenger mode is active); reason: %s' % msg['message']
-                
+                    log.error("[scheduler][kill_all_jobs] atq job RESCHEDULE FAILED: "
+                              "runid=%s jobid=%s message=%s", runid, jobid, msg.get("message"))
+                    status  = "RESCHEDULE_FAILED"
+                    reason  = "reschedule failed (scavenger mode active): %s" % msg.get("message", "")
 
-                client.update_run(status=terminate['status'], 
-                                status_message=terminate['reason'],
-                                **client_params)
-            
+                client.update_run(status=status, status_message=reason, **client_params)
+
             else:
-                log.info('job type not recognized: runid=%s jobid=%s type=%s'
-                         % (client_params['runid'], client_params['jobid']), job_type)
-            
+                log.warning("[scheduler][kill_all_jobs] unrecognised job_type=%s "
+                            "runid=%s jobid=%s — no run status update", job_type, runid, jobid)
 
-    except Exception as e:
-        log.info(e)
+    except Exception:
+        log.exception("[scheduler][kill_all_jobs] EXCEPTION during eviction nodeid=%s", nodeid)
+
 
 def kill_task_docker(runid, jobid):
-    """kill a docker container given name"""
-    log.info("kill_task_docker runid=%s jobid=%s" % (runid, jobid))
-    client = docker.from_env()
-    label = ["runid=%s"%runid, "jobid=%s" % jobid, "server=true"] 
+    """Stop the server-mode experiment container for a given run."""
+    log.info("[scheduler][kill_task_docker] stopping server container runid=%s jobid=%s",
+             runid, jobid)
+    docker_client = docker.from_env()
     filters = {
-        "label": label, 
-        "status": "running" 
+        "label": ["runid=%s" % runid, "jobid=%s" % jobid, "server=true"],
+        "status": "running",
     }
-
     try:
-        container_list = client.containers.list(filters=filters)
-        log.info('kill_task_docker runid=%s jobid=%s container_list %s' 
-                            % (runid, jobid, str(container_list)))
+        container_list = docker_client.containers.list(filters=filters)
+        log.info("[scheduler][kill_task_docker] found %d matching containers runid=%s jobid=%s",
+                 len(container_list), runid, jobid)
+        if not container_list:
+            log.warning("[scheduler][kill_task_docker] no server container found "
+                        "runid=%s jobid=%s", runid, jobid)
+            return
         container = container_list[0]
-        log.info('kill_task_docker runid=%s jobid=%s stopping container' 
-                            % (runid, jobid))
+        log.info("[scheduler][kill_task_docker] stopping container name=%s", container.name)
         container.stop()
-        # log.info('removing container')
-        # container.remove()
-    except:
-        log.info('kill_task_docker runid=%s jobid=%s no existing instance of measurement container found'
-                    % (runid, jobid))
+        log.info("[scheduler][kill_task_docker] server container stopped runid=%s jobid=%s",
+                 runid, jobid)
+    except Exception:
+        log.exception("[scheduler][kill_task_docker] error stopping container "
+                      "runid=%s jobid=%s", runid, jobid)
+
 
 class LeotestTaskScheduler:
     def __init__(self, executor_path):
         self.executor_path = executor_path
-    
+
     def _add_task(self, task):
         """add a task to task queue"""
 
@@ -160,7 +162,7 @@ class LeotestTaskScheduler:
 
     def _sync_tasks(self, remote_task_list):
         """sync the tasks with the remote task list"""
-    
+
     def sync_tasks(self, remote_task_list):
         self._sync_tasks(remote_task_list)
 
@@ -170,222 +172,117 @@ class LeotestTaskScheduler:
     def remove_task(self, task):
         self._remove_task(task)
 
-"""
-Using python-atd:
 
-from atd import atd
-import datetime
-
-print('Create some jobs...')
-job1 = atd.at("echo lol >> /tmp/lolol", datetime.datetime.now() + 
-    datetime.timedelta(minutes = 2))
-
-jobid = job1.command.split('#')[1].strip()
-
-# find jobs with a specific jobid: 
-atq = atd.AtQueue()
-local_jobs = {}
-
-for job in atq.jobs:
-    jobid = job.command.split('#')[1].strip()
-    
-    if jobid not in the remote_job_list:
-        atd.atrm(job)
-    else:
-        local_jobs[jobid] = job
-
-for jobid, job in remote_job_list:
-    if jobid not in local_jobs:
-        # schedule the job 
-        atd.at("./job_command # %s" % jobid, datetime.datetime.now() + 
-    datetime.timedelta(minutes = delta))
-
-"""
-# class LeotestTaskSchedulerAtq(LeotestTaskScheduler):
-#     def __init__(self, executor_path, 
-#                         nodeid,
-#                         artifactdir="/artifacts/",
-#                         grpc_hostname="localhost",
-#                         grpc_port=50051,
-#                         executor_config='/executor-config.yaml'):
-#         super().__init__(executor_path=executor_path)
-
-#         self.artifactdir = artifactdir
-#         self.grpc_hostname = grpc_hostname
-#         self.grpc_port = grpc_port
-#         self.executor_config = executor_config
-#         self.nodeid = nodeid
-
-#     def _add_task(self, leotest_task):
-#         cmd = self.executor_path        
-        
-#         cmd += " --taskid=%s" % leotest_task.get_taskid()
-#         cmd += " --runid=%s" % leotest_task.get_runid()
-#         cmd += " --jobid=%s" % leotest_task.get_jobid() 
-#         cmd += " --nodeid=%s" % leotest_task.get_nodeid()
-#         cmd += " --ttl-secs=%s" % leotest_task.get_ttl_secs()
-#         cmd += " --server"
-#         cmd += ' --workdir="%s"' % self.artifactdir
-#         cmd += " --grpc-hostname=%s" % self.grpc_hostname
-#         cmd += " --grpc-port=%s" % self.grpc_port
-#         cmd += " --executor-config=%s" % self.executor_config
-#         cmd += " --mode=docker"
-
-#         log.info('task command: %s' % cmd)
-
-#         logfile = os.path.join(self.artifactdir, "executor_stdout.log")
-#         cmd += " >> %s" % logfile
-
-#         # schedule the job using at
-#         Popen(["at", "now"], stdin=PIPE, stdout=PIPE).communicate(
-#             input=cmd.encode()
-#         )
 class LeotestTaskSchedulerPopen(LeotestTaskScheduler):
-    """Inherited class for scheduling the tasks locally at a node.
-    The jobs scheduled on the testbed are converte to local tasks at the nodes and the tasks are executed using the executor module.
+    """Execute a SERVER_START task by spawning a subprocess executor in server mode."""
 
-    :param LeotestTaskScheduler: Base class that defines abstract methods to schedule tasks on the node.
-    :type LeotestTaskScheduler: class LeotestTaskScheduler
-    """    
     def __init__(self, executor_path,
-                        module_name,
-                        workdir, 
-                        nodeid,
-                        artifactdir="/artifacts/",
-                        grpc_hostname="localhost",
-                        grpc_port=50051,
-                        executor_config='/executor-config.yaml',
-                        access_token=''):
+                 module_name,
+                 workdir,
+                 nodeid,
+                 artifactdir="/artifacts/",
+                 grpc_hostname="localhost",
+                 grpc_port=50051,
+                 executor_config="/executor-config.yaml",
+                 access_token=""):
         super().__init__(executor_path=executor_path)
-
-        self.executor_path = executor_path
-        self.workdir = workdir 
-        self.module_name = module_name
-        self.artifactdir = artifactdir
+        self.module_name   = module_name
+        self.workdir       = workdir
+        self.artifactdir   = artifactdir
         self.grpc_hostname = grpc_hostname
-        self.grpc_port = grpc_port
+        self.grpc_port     = grpc_port
         self.executor_config = executor_config
-        self.nodeid = nodeid
-        self.access_token = access_token
+        self.nodeid        = nodeid
+        self.access_token  = access_token
 
     def _add_task(self, leotest_task):
-        cmd = [self.executor_path]        
-        cmd.append("-m")
-        cmd.append(self.module_name)
-        cmd.append("--taskid=%s" % leotest_task.get_taskid())
-        cmd.append("--runid=%s" % leotest_task.get_runid())
-        cmd.append("--jobid=%s" % leotest_task.get_jobid()) 
-        cmd.append("--nodeid=%s" % leotest_task.get_nodeid())
-        cmd.append("--access-token=%s" % self.access_token)
-        cmd.append("--ttl-secs=%s" % leotest_task.get_ttl_secs())
+        cmd = [self.executor_path]
+        cmd += ["-m", self.module_name]
+        cmd.append("--taskid=%s"        % leotest_task.get_taskid())
+        cmd.append("--runid=%s"         % leotest_task.get_runid())
+        cmd.append("--jobid=%s"         % leotest_task.get_jobid())
+        cmd.append("--nodeid=%s"        % leotest_task.get_nodeid())
+        cmd.append("--access-token=%s"  % self.access_token)
+        cmd.append("--ttl-secs=%s"      % leotest_task.get_ttl_secs())
         cmd.append("--server")
-        cmd.append("--workdir=%s" % self.artifactdir)
+        cmd.append("--workdir=%s"       % self.artifactdir)
         cmd.append("--grpc-hostname=%s" % self.grpc_hostname)
-        cmd.append("--grpc-port=%s" % self.grpc_port)
+        cmd.append("--grpc-port=%s"     % self.grpc_port)
         cmd.append("--executor-config=%s" % self.executor_config)
         cmd.append("--mode=docker")
 
-        
-        log.info('task command: %s' % str(cmd))
-
-        # logfile = os.path.join(self.artifactdir, "executor_stdout.log")
-        # cmd += " >> %s" % logfile
-
-        # schedule the job using Popen
-        # Popen(["at", "now"], stdin=PIPE, stdout=PIPE).communicate(
-            # input=cmd.encode()
-        # )
-        log.info('-------------------------TASK COMMAND-----------------------------------------')
-        log.info(cmd)
-        log.info('-------------------------TASK COMMAND:END-----------------------------------------')
+        log.info("[scheduler][task_add] spawning server task: taskid=%s runid=%s jobid=%s "
+                 "nodeid=%s cmd=%s",
+                 leotest_task.get_taskid(), leotest_task.get_runid(),
+                 leotest_task.get_jobid(), leotest_task.get_nodeid(), cmd)
         Popen(cmd, cwd=self.workdir, preexec_fn=os.setsid)
+        log.info("[scheduler][task_add] server task subprocess launched taskid=%s",
+                 leotest_task.get_taskid())
 
 
 class LeotestJobScheduler:
-    """Base class to handle jobs sent by the orchestrator at the nodes.
-    """    
+    """Base class to handle jobs sent by the orchestrator at the nodes."""
+
     def __init__(self, executor_path):
         self.executor_path = executor_path
-    
+
     def _add_job(self, job):
         """add a job to crontab"""
 
     def add_job(self, job):
         self._add_job(job)
-    
+
     def _remove_job(self, job):
         """remove job from crontab"""
 
     def remove_job(self, job):
         self._remove_job(job)
-    
+
     def _sync_jobs(self, remote_job_list):
-        """syncronize local job schedule with remote schedule"""
+        """synchronize local job schedule with remote schedule"""
 
     def sync_jobs(self, remote_job_list):
         self._sync_jobs(remote_job_list)
-
 
     def _get_job_list(self):
         """return a list of jobs locally scheduled"""
 
     def get_job_list(self):
-        jobs = self._get_job_list()
-        return jobs
+        return self._get_job_list()
+
 
 class LeotestJobSchedulerAtq(LeotestJobScheduler):
-    """Inherited class responsible for handling ATQ jobs sent by the orchestrator at the nodes.
+    """Handle ATQ (one-shot) jobs from the orchestrator."""
 
-    :param LeotestJobScheduler: Base class that defines the various abstract methods.
-    :type LeotestJobScheduler: class LeotestJobScheduler
-    """    
-    def __init__(self, executor_path, 
-                        nodeid,
-                        artifactdir="/artifacts/",
-                        grpc_hostname="localhost",
-                        grpc_port=50051,
-                        executor_config='/executor-config.yaml',
-                        access_token=''):
+    def __init__(self, executor_path,
+                 nodeid,
+                 artifactdir="/artifacts/",
+                 grpc_hostname="localhost",
+                 grpc_port=50051,
+                 executor_config="/executor-config.yaml",
+                 access_token=""):
         super().__init__(executor_path=executor_path)
-
-        self.artifactdir = artifactdir
-        self.grpc_hostname = grpc_hostname
-        self.grpc_port = grpc_port
+        self.artifactdir     = artifactdir
+        self.grpc_hostname   = grpc_hostname
+        self.grpc_port       = grpc_port
         self.executor_config = executor_config
-        self.nodeid = nodeid
-        self.access_token = access_token
-    
-    # methods to handle atq interactions
+        self.nodeid          = nodeid
+        self.access_token    = access_token
+
     def get_jobid_from_command(self, cmd):
-        return cmd.decode('utf-8').split('#')[1].strip()
+        return cmd.decode("utf-8").split("#")[1].strip()
 
     def get_job_with_id(self, jobid):
-        job = None 
+        job = None
         job_found = False
         atq = atd.AtQueue()
         for _job in atq.jobs:
             if jobid == self.get_jobid_from_command(_job.command):
-                print('job found: %s' % str(_job))
-                job_found = True 
+                log.info("[scheduler][atq] found atq entry for jobid=%s", jobid)
+                job_found = True
                 job = _job
-                break 
-
-        # find jobs with a specific jobid: 
-        return job_found, job 
-
-    def get_job_with_id(self, jobid):
-        job = None 
-        job_found = False
-        atq = atd.AtQueue()
-        for _job in atq.jobs:
-            if jobid == self.get_jobid_from_command(_job.command):
-                print('job found: %s' % str(_job))
-                job_found = True 
-                job = _job
-                break 
-
-        # find jobs with a specific jobid: 
-        return job_found, job 
+                break
+        return job_found, job
 
     def list_all_jobs(self):
         jobs = []
@@ -393,184 +290,162 @@ class LeotestJobSchedulerAtq(LeotestJobScheduler):
         for _job in atq.jobs:
             jobid = self.get_jobid_from_command(_job.command)
             jobs.append(jobid)
-        
-        return jobs 
+        return jobs
 
     def jobid_in_remote_list(self, jobid, remote_job_list):
-        for job in remote_job_list:
-            if jobid == job['jobid']:
-                return True 
-        
-        return False
+        return any(jobid == job["jobid"] for job in remote_job_list)
 
-    def _add_job(self, leotest_job):
-        """ This methods schedules the job sent by orchestrator as local tasks on the node.
-
-        :param leotest_job: object of class LeotestJob
-        :type leotest_job: object LeotestJob
-        """        
+    def _build_cmd(self, leotest_job):
         cmd = self.executor_path
         for key, value in leotest_job.get_job_params().items():
             cmd += " --%s='%s'" % (key, value)
-        
-        # append jobid 
-        cmd += " --jobid=%s" % leotest_job.get_jobid() 
-        cmd += " --start-date=%s" % leotest_job.start_date 
-        cmd += " --end-date=%s" % leotest_job.end_date
-        cmd += " --resched-buffer=%d" % 1800 # TODO: Make this configurable 
-        cmd += " --length-secs=%s" % leotest_job.get_length_secs()
-        cmd += " --nodeid=%s" % self.nodeid
-        cmd += " --userid=%s" % leotest_job.userid
+        cmd += " --jobid=%s"        % leotest_job.get_jobid()
+        cmd += " --start-date=%s"   % leotest_job.start_date
+        cmd += " --end-date=%s"     % leotest_job.end_date
+        cmd += " --resched-buffer=%d" % cfg.SCHEDULER_RESCHED_BUFFER_SECS
+        cmd += " --length-secs=%s"  % leotest_job.get_length_secs()
+        cmd += " --nodeid=%s"       % self.nodeid
+        cmd += " --userid=%s"       % leotest_job.userid
         cmd += " --access-token=%s" % self.access_token
-        cmd += ' --workdir="%s"' % self.artifactdir
+        cmd += ' --workdir="%s"'    % self.artifactdir
         cmd += " --grpc-hostname=%s" % self.grpc_hostname
-        cmd += " --grpc-port=%s" % self.grpc_port
+        cmd += " --grpc-port=%s"    % self.grpc_port
         cmd += " --executor-config=%s" % self.executor_config
         cmd += " --mode=docker"
-        cmd += " --type=%s" % leotest_job.type 
-        
+        cmd += " --type=%s"         % leotest_job.type
         if leotest_job.overhead:
             cmd += " --overhead"
         else:
             cmd += " --no-overhead"
-
         if leotest_job.server:
             cmd += " --setup-server"
             cmd += " --server-node=%s" % leotest_job.server
-
         logfile = os.path.join(self.artifactdir, "executor_stdout.log")
         cmd += " >> %s" % logfile
+        return cmd
 
-        # get current time 
-        if time_now() >= leotest_job.get_start_time_obj():
-            # schedule now 
-            log.info('not scheduling atq job now as time_now >="%s";' 
-                    'cmd="%s # %s"' 
-                    % (leotest_job.start_date, cmd, leotest_job.get_jobid()))
-            
-            # atd.at("%s # %s" % (cmd, leotest_job.get_jobid()), 
-              #                                 time_now() + timedelta(seconds=10))
+    def _add_job(self, leotest_job):
+        cmd = self._build_cmd(leotest_job)
+        start_obj = leotest_job.get_start_time_obj()
+
+        if time_now() >= start_obj:
+            log.warning("[scheduler][atq][add_job] skipping ATQ job — start time already passed: "
+                        "jobid=%s start_date=%s", leotest_job.get_jobid(), leotest_job.start_date)
         else:
-            log.info('scheduling atq job at time="%s";' 
-                    'cmd="%s # %s"' % (leotest_job.start_date, 
-                                        cmd, leotest_job.get_jobid()))
-            atd.at("%s # %s" % (cmd, leotest_job.get_jobid()), 
-                                              leotest_job.get_start_time_obj())
+            log.info("[scheduler][atq][add_job] scheduling ATQ job: "
+                     "jobid=%s start_date=%s cmd_prefix=%s...",
+                     leotest_job.get_jobid(), leotest_job.start_date, cmd[:120])
+            atd.at("%s # %s" % (cmd, leotest_job.get_jobid()), start_obj)
+            log.info("[scheduler][atq][add_job] ATQ entry created jobid=%s", leotest_job.get_jobid())
 
     def _sync_jobs(self, remote_job_list):
-        """removes the existing jobs and reschedules the jobs obtained from the orchestrator.
-
-        :param remote_job_list: List of jobs schedules sent by orchestrator.
-        :type remote_job_list: list of objects of LeotestJob class.
-        """        
-        log.info('clearing existing atq jobs')
-        # clear all jobs 
+        log.info("[scheduler][atq][sync] clearing existing ATQ entries")
         atq = atd.AtQueue()
-
         try:
             for job in atq.jobs:
                 atd.atrm(job)
-        except Exception as e:
-            log.info(e)
+        except Exception:
+            log.exception("[scheduler][atq][sync] error clearing ATQ entries")
 
         local_jobs = {}
         atq = atd.AtQueue()
         for job in atq.jobs:
             jobid = self.get_jobid_from_command(job.command)
-            
             if not self.jobid_in_remote_list(jobid, remote_job_list):
                 atd.atrm(job)
             else:
                 local_jobs[jobid] = job
 
-        # print(local_jobs)
-        log.info('syncing remote jobs: %s' % str(remote_job_list))
+        log.info("[scheduler][atq][sync] syncing %d remote ATQ jobs", len(remote_job_list))
         for job in remote_job_list:
             jobid = job.jobid
             if jobid not in local_jobs:
-                print('schedule %s' % jobid)
-                # schedule the job 
+                log.info("[scheduler][atq][sync] adding ATQ job jobid=%s", jobid)
                 self.add_job(job)
+            else:
+                log.debug("[scheduler][atq][sync] ATQ job already scheduled jobid=%s", jobid)
+        log.info("[scheduler][atq][sync] done")
+
 
 class LeotestJobSchedulerCron(LeotestJobScheduler):
-    """Inherited class responsible for handling CRON jobs sent by the orchestrator at the nodes.
+    """Handle cron (recurring) jobs from the orchestrator."""
 
-    :param LeotestJobScheduler: Base class that defines the various abstract methods.
-    :type LeotestJobScheduler: class LeotestJobScheduler
-    """    
-    def __init__(self, executor_path, 
-                        nodeid,
-                        artifactdir="/artifacts/",
-                        grpc_hostname="localhost",
-                        grpc_port=50051,
-                        executor_config='/executor-config.yaml',
-                        access_token=''):
+    def __init__(self, executor_path,
+                 nodeid,
+                 artifactdir="/artifacts/",
+                 grpc_hostname="localhost",
+                 grpc_port=50051,
+                 executor_config="/executor-config.yaml",
+                 access_token=""):
         super().__init__(executor_path=executor_path)
-        self.cron = CronTab(user=True)
-        self.artifactdir = artifactdir
-        self.grpc_hostname = grpc_hostname
-        self.grpc_port = grpc_port
+        self.cron            = CronTab(user=True)
+        self.artifactdir     = artifactdir
+        self.grpc_hostname   = grpc_hostname
+        self.grpc_port       = grpc_port
         self.executor_config = executor_config
-        self.nodeid = nodeid
-        self.access_token = access_token
+        self.nodeid          = nodeid
+        self.access_token    = access_token
 
-    def _add_job(self, leotest_job):
+    def _build_cmd(self, leotest_job):
         cmd = self.executor_path
         for key, value in leotest_job.get_job_params().items():
             cmd += " --%s='%s'" % (key, value)
-        
-        # append jobid 
-        cmd += " --jobid=%s" % leotest_job.get_jobid() 
-        cmd += " --start-date=%s" % leotest_job.start_date 
-        cmd += " --end-date=%s" % leotest_job.end_date
-        cmd += " --resched-buffer=%d" % 1800 # TODO: Make this configurable 
-        cmd += " --length-secs=%s" % leotest_job.get_length_secs()
-        cmd += " --nodeid=%s" % self.nodeid
-        cmd += " --userid=%s" % leotest_job.userid
-        cmd += " --access-token=%s" % self.access_token
-        cmd += ' --workdir="%s"' % self.artifactdir
+        cmd += " --jobid=%s"         % leotest_job.get_jobid()
+        cmd += " --start-date=%s"    % leotest_job.start_date
+        cmd += " --end-date=%s"      % leotest_job.end_date
+        cmd += " --resched-buffer=%d" % cfg.SCHEDULER_RESCHED_BUFFER_SECS
+        cmd += " --length-secs=%s"   % leotest_job.get_length_secs()
+        cmd += " --nodeid=%s"        % self.nodeid
+        cmd += " --userid=%s"        % leotest_job.userid
+        cmd += " --access-token=%s"  % self.access_token
+        cmd += ' --workdir="%s"'     % self.artifactdir
         cmd += " --grpc-hostname=%s" % self.grpc_hostname
-        cmd += " --grpc-port=%s" % self.grpc_port
+        cmd += " --grpc-port=%s"     % self.grpc_port
         cmd += " --executor-config=%s" % self.executor_config
         cmd += " --mode=docker"
-        cmd += " --type=%s" % leotest_job.type 
-
+        cmd += " --type=%s"          % leotest_job.type
         if leotest_job.overhead:
             cmd += " --overhead"
         else:
             cmd += " --no-overhead"
-
         if leotest_job.server:
             cmd += " --setup-server"
             cmd += " --server-node=%s" % leotest_job.server
-
         logfile = os.path.join(self.artifactdir, "executor_stdout.log")
         cmd += " >> %s" % logfile
+        return cmd
 
-        job  = self.cron.new(command=cmd, 
-                            comment=leotest_job.get_jobid())
-        job.setall(leotest_job.get_cron_string())
-        self.cron.write() 
-    
+    def _add_job(self, leotest_job):
+        cmd = self._build_cmd(leotest_job)
+        cron_str = leotest_job.get_cron_string()
+        log.info("[scheduler][cron][add_job] adding cron entry: jobid=%s schedule=%s",
+                 leotest_job.get_jobid(), cron_str)
+        job = self.cron.new(command=cmd, comment=leotest_job.get_jobid())
+        job.setall(cron_str)
+        self.cron.write()
+        log.info("[scheduler][cron][add_job] cron entry written jobid=%s", leotest_job.get_jobid())
+
     def _remove_job(self, leotest_job):
+        log.info("[scheduler][cron][remove_job] removing cron entry jobid=%s",
+                 leotest_job.get_jobid())
         self.cron.remove_all(comment=leotest_job.get_jobid())
         self.cron.write()
 
     def _sync_jobs(self, remote_leotest_jobs):
-        # clear all jobs and add them again 
-        # this ensures that any modifications to cron schedules are replicated
+        log.info("[scheduler][cron][sync] clearing all cron entries and re-adding %d jobs",
+                 len(remote_leotest_jobs))
         self.cron.remove_all()
         for leotest_job in remote_leotest_jobs:
             self.add_job(leotest_job)
-        # in case there are no jobs, ensure we perform a write() to clear the crontab
         self.cron.write()
-    
+        log.info("[scheduler][cron][sync] crontab written")
+
     def get_params_from_cmd(self, cmd):
         params = {}
         tokens = cmd.split(" ")
         for i in range(1, len(tokens)):
             arg = tokens[i]
-            arg_split = arg.split('=')
+            arg_split = arg.split("=")
             key = arg_split[0][2:]
             val = arg_split[1]
             params[key] = val
@@ -579,337 +454,385 @@ class LeotestJobSchedulerCron(LeotestJobScheduler):
     def _get_job_list(self):
         leotest_job_list = []
         for job in self.cron:
-            jobid = job.comment 
-            job_params = self.get_params_from_cmd(job.command) 
-            # TODO: parse command to get job parameters 
-
-            leotest_job = LeotestJobCron(jobid = jobid,
-                                    job_params=job_params,  
-                                    minute=str(job.minute),
-                                    hour=str(job.hour),
-                                    day_of_month=str(job.dom),
-                                    month=str(job.month),
-                                    day_of_week=str(job.dow))
-
+            jobid = job.comment
+            job_params = self.get_params_from_cmd(job.command)
+            leotest_job = LeotestJobCron(
+                jobid=jobid,
+                job_params=job_params,
+                minute=str(job.minute),
+                hour=str(job.hour),
+                day_of_month=str(job.dom),
+                month=str(job.month),
+                day_of_week=str(job.dow))
             leotest_job_list.append(leotest_job)
-        
         return leotest_job_list
 
 
-def _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_scheduler, 
-                           sessionstore, trigger_module, log):
-    
-    client.init_grpc_client() # reset client state as socket does not exist on new process
-    log.info('sending heartbeat')
+def _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_scheduler,
+                       sessionstore, trigger_module, log):
+    client.init_grpc_client()  # reset gRPC socket after fork()
+
+    # ------------------------------------------------------------------
+    # Heartbeat + node presence
+    # ------------------------------------------------------------------
+    log.info("[scheduler][tick] sending heartbeat nodeid=%s", nodeid)
     client.send_heartbeat(nodeid)
-    client.update_node(nodeid=nodeid, public_ip=get_public_ip())
+    public_ip = get_public_ip()
+    client.update_node(nodeid=nodeid, public_ip=public_ip)
+    log.info("[scheduler][tick] node presence updated nodeid=%s public_ip=%s", nodeid, public_ip)
 
-    log.info('fetching jobs from orchestrator')
+    # ------------------------------------------------------------------
+    # Job sync
+    # ------------------------------------------------------------------
+    log.info("[scheduler][tick] fetching jobs from orchestrator nodeid=%s", nodeid)
     res = MessageToDict(client.get_jobs_by_nodeid(nodeid, forever=True))
-    # {'exists': True, 'jobs': [{'id': 'test-id-1', 'nodeid': 'test-node', 'params': {'mode': 'docker', 'deploy': 'random deploy', 'execute': 'random execute', 'finish': 'random finish'}, 'schedule': '*/6 * * * *'}, {'id': 'test-id-2', 'nodeid': 'test-node', 'params': {'mode': 'docker', 'deploy': 'random deploy', 'execute': 'random execute', 'finish': 'random finish'}, 'schedule': '*/6 * * 2-10 *'}]}
-    print(res)
+    log.debug("[scheduler][tick] raw job response: %s", res)
 
-    remote_job_list = {'cron': [], 'atq': []}
+    remote_job_list = {"cron": [], "atq": []}
 
-    if 'jobs' in res:
-        logmsg = 'syncing jobs: '
-        for job in res['jobs']:
-            # Saving experiment config in file:
-            log.info(f"reading job config for job id {job['id']}!")
-            retrieve_job = client.get_job_by_id(job["id"])
-            data = retrieve_job.config
-            lines = data.split('\n')
-            result_dict = {}
-            stack = [result_dict]
+    if "jobs" in res:
+        job_ids_seen = []
+        for job in res["jobs"]:
+            job_id = job["id"]
+            log.info("[scheduler][tick][job] processing job: id=%s nodeid=%s type=%s",
+                     job_id, job.get("nodeid"), job.get("type"))
 
-            for line in lines:
-                if not line.strip().startswith('#') and line.strip() != '':
-                    indentation = len(line) - len(line.lstrip())
-                    while len(stack) > indentation + 1:
-                        stack.pop()
-                    key, value = map(str.strip, line.split(':', 1))
+            # --- save experiment config locally (use yaml.safe_load, not custom parser) ---
+            try:
+                retrieve_job = client.get_job_by_id(job_id)
+                config_yaml = retrieve_job.config
+                if config_yaml:
                     try:
-                        value = json.loads(value)
-                    except json.JSONDecodeError:
-                        pass
-                    stack[-1][key] = value
-                    if isinstance(value, dict):
-                        stack.append(value)
+                        result_dict = yaml.safe_load(config_yaml) or {}
+                    except yaml.YAMLError:
+                        log.exception("[scheduler][tick][job] YAML parse error for jobid=%s "
+                                      "— storing raw string under 'raw'", job_id)
+                        result_dict = {"raw": config_yaml}
+                else:
+                    result_dict = {}
 
-            log.info(f"finished reading job config for job id {job['id']}!")
-            log.info(f"experiment config result for job id {job['id']} is: {result_dict}")
+                config_path = os.path.join(
+                    cfg.EXPERIMENT_CONFIGS_DIR,
+                    "experiment_config_%s.json" % job_id)
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+                with open(config_path, "w") as f:
+                    json.dump(result_dict, f, indent=2)
+                log.info("[scheduler][tick][job] experiment config saved: jobid=%s path=%s "
+                         "keys=%s", job_id, config_path, list(result_dict.keys()))
+            except Exception:
+                log.exception("[scheduler][tick][job] FAILED to fetch/save config for jobid=%s",
+                              job_id)
 
-            file_name = f"/leotest/experiment_configs/experiment_config_{job['id']}.json"
-
-            # Save data to the file inside the container
-            with open(file_name, "w") as file:
-                json.dump(result_dict, file)
-
-            if nodeid != job['nodeid']:
+            if nodeid != job["nodeid"]:
+                log.debug("[scheduler][tick][job] skipping job not for this node: "
+                          "jobid=%s job_nodeid=%s our_nodeid=%s",
+                          job_id, job.get("nodeid"), nodeid)
                 continue
-            server = job['server'] if 'server' in job else None
-            trigger = job['trigger'] if 'trigger' in job else None         
-            job_type = job['type'].lower() if 'type' in job else 'cron'
-            if not 'overhead' in job:
-                job['overhead'] = False
-            logmsg += '<id=%s,type=%s>' % (job['id'], job_type)
 
-            if job_type == 'cron':
-                leo_job = LeotestJobCron(jobid=job['id'],
-                                        nodeid=job['nodeid'],
-                                        userid=job['userid'],
-                                        start_date=job['startDate'],
-                                        end_date=job['endDate'],
-                                        server=server,
-                                        trigger=trigger,
-                                        length_secs=job['lengthSecs'],
-                                        job_params=job['params'],
-                                        overhead=job['overhead'])
-                leo_job.set_schedule_cron(job['schedule'])
-                remote_job_list['cron'].append(leo_job)
-            
-            elif job_type == 'atq':
-                leo_job = LeotestJobAtq(jobid=job['id'],
-                    nodeid=job['nodeid'],
-                    userid=job['userid'],
-                    start_date=job['startDate'],
-                    end_date=job['endDate'],
+            server   = job.get("server")
+            trigger  = job.get("trigger")
+            job_type = job.get("type", "cron").lower()
+            overhead = job.get("overhead", False)
+            job_ids_seen.append(job_id)
+            log.info("[scheduler][tick][job] accepting job: jobid=%s type=%s overhead=%s "
+                     "server=%s trigger=%s schedule=%s startDate=%s endDate=%s",
+                     job_id, job_type, overhead, server, trigger,
+                     job.get("schedule"), job.get("startDate"), job.get("endDate"))
+
+            if job_type == "cron":
+                leo_job = LeotestJobCron(
+                    jobid=job_id,
+                    nodeid=job["nodeid"],
+                    userid=job["userid"],
+                    start_date=job["startDate"],
+                    end_date=job["endDate"],
                     server=server,
                     trigger=trigger,
-                    length_secs=job['lengthSecs'],
-                    job_params=job['params'],
-                    overhead=job['overhead'])
-                
-                remote_job_list['atq'].append(leo_job)
-        
-        log.info(logmsg)
+                    length_secs=job["lengthSecs"],
+                    job_params=job["params"],
+                    overhead=overhead)
+                leo_job.set_schedule_cron(job["schedule"])
+                remote_job_list["cron"].append(leo_job)
 
-    cron_scheduler.sync_jobs(remote_job_list['cron'])
-    atq_scheduler.sync_jobs(remote_job_list['atq'])
+            elif job_type == "atq":
+                leo_job = LeotestJobAtq(
+                    jobid=job_id,
+                    nodeid=job["nodeid"],
+                    userid=job["userid"],
+                    start_date=job["startDate"],
+                    end_date=job["endDate"],
+                    server=server,
+                    trigger=trigger,
+                    length_secs=job["lengthSecs"],
+                    job_params=job["params"],
+                    overhead=overhead)
+                remote_job_list["atq"].append(leo_job)
+
+            else:
+                log.warning("[scheduler][tick][job] unknown job_type=%s jobid=%s — skipping",
+                            job_type, job_id)
+
+        log.info("[scheduler][tick] job fetch complete: %d cron, %d atq for nodeid=%s "
+                 "(total in response=%d accepted=%d)",
+                 len(remote_job_list["cron"]), len(remote_job_list["atq"]),
+                 nodeid, len(res["jobs"]), len(job_ids_seen))
+    else:
+        log.info("[scheduler][tick] no jobs returned from orchestrator for nodeid=%s", nodeid)
+
+    log.info("[scheduler][tick] syncing cron scheduler: %d jobs", len(remote_job_list["cron"]))
+    cron_scheduler.sync_jobs(remote_job_list["cron"])
+    log.info("[scheduler][tick] syncing atq scheduler: %d jobs", len(remote_job_list["atq"]))
+    atq_scheduler.sync_jobs(remote_job_list["atq"])
     for key in remote_job_list:
         trigger_module.sync_triggers(remote_job_list[key])
+    log.info("[scheduler][tick] job sync complete nodeid=%s", nodeid)
 
-    log.info('fetching tasks from orchestrator')
+    # ------------------------------------------------------------------
+    # Task dispatch
+    # ------------------------------------------------------------------
+    log.info("[scheduler][tick] fetching tasks from orchestrator nodeid=%s", nodeid)
     res = MessageToDict(client.get_tasks(nodeid=nodeid))
-    print(res)
+    log.debug("[scheduler][tick] raw task response: %s", res)
 
-    if 'tasks' in res:
-        for task in res['tasks']:
-            log.info(task)
-            task_type = task['type']
-            leo_task = LeotestTask(taskid=task['taskid'],
-                                    runid=task['runid'],
-                                    jobid=task['jobid'],
-                                    nodeid=task['nodeid'],
-                                    task_type=task['type'],
-                                    ttl_secs=task['ttlSecs'])
-            
-            if 'status' in task and task['status'] != 'TASK_COMPLETE':
-                # task_type_str = pb2.task_type.Name(task_type)
-                exists = sessionstore.get(key=task['taskid'], default=None)
+    if "tasks" in res:
+        log.info("[scheduler][tick] got %d tasks for nodeid=%s", len(res["tasks"]), nodeid)
+        for task in res["tasks"]:
+            task_id   = task.get("taskid", "unknown")
+            task_type = task.get("type",   "unknown")
+            task_status = task.get("status", "")
+            log.info("[scheduler][tick][task] task: taskid=%s type=%s status=%s runid=%s jobid=%s",
+                     task_id, task_type, task_status, task.get("runid"), task.get("jobid"))
+
+            leo_task = LeotestTask(
+                taskid=task["taskid"],
+                runid=task["runid"],
+                jobid=task["jobid"],
+                nodeid=task["nodeid"],
+                task_type=task["type"],
+                ttl_secs=task["ttlSecs"])
+
+            if task_status and task_status != "TASK_COMPLETE":
+                exists = sessionstore.get(key=task_id, default=None)
                 if not exists:
-                    log.info('task %s does not exist. Adding to sessionstore'
-                                % (task['taskid']))
-                    sessionstore.set(key=task['taskid'], 
-                                        value='1', 
-                                        # expire=int(task['ttlSecs']) + 30
-                                        expire=24*60*60) # 24 hours 
-                    
-                    if task_type == 'SERVER_START':
-                        # add to task scheduler 
+                    log.info("[scheduler][tick][task] new task — adding to sessionstore: "
+                             "taskid=%s type=%s", task_id, task_type)
+                    sessionstore.set(
+                        key=task_id,
+                        value="1",
+                        expire=24 * 60 * 60)
+
+                    if task_type == "SERVER_START":
+                        log.info("[scheduler][tick][task] dispatching SERVER_START task "
+                                 "taskid=%s runid=%s", task_id, task["runid"])
                         task_scheduler.add_task(leo_task)
 
                     elif task_type == "SERVER_STOP":
-                        # get the container name and kill it 
+                        log.info("[scheduler][tick][task] handling SERVER_STOP: "
+                                 "stopping container runid=%s jobid=%s taskid=%s",
+                                 task["runid"], task["jobid"], task_id)
                         kill_task_docker(leo_task.get_runid(), leo_task.get_jobid())
-                        client.update_task(taskid=task['taskid'], status='TASK_COMPLETE')
+                        client.update_task(taskid=task_id, status="TASK_COMPLETE")
+                        log.info("[scheduler][tick][task] SERVER_STOP TASK_COMPLETE taskid=%s",
+                                 task_id)
 
                     else:
-                        log.info('no such task %s' % task_type) 
-
+                        log.warning("[scheduler][tick][task] unrecognised task_type=%s "
+                                    "taskid=%s — ignoring", task_type, task_id)
                 else:
-                    log.info('task %s exists, not adding.' % (task['taskid']))
-    
-    # check for scavenger status, if there are jobs running, bring them down 
-    msg = MessageToDict(client.get_scavenger_status(nodeid))
-    log.info(msg)
-    if 'scavengerModeActive' in msg and msg['scavengerModeActive']==True:
-        log.info('scavenger mode is active; killing all job containers.')
-        # bring down all containers belonging to LEOScope 
-        # we want to execute this async. to avoid schduler loop stalls.
-        thread = threading.Thread(target=kill_all_jobs, 
-                                    args=[client, nodeid, sessionstore])
-        thread.start()
-        # kill_all_jobs(client, nodeid, sessionstore)
+                    log.debug("[scheduler][tick][task] task already in sessionstore — "
+                              "skipping: taskid=%s", task_id)
+            else:
+                log.debug("[scheduler][tick][task] task already TASK_COMPLETE, skipping: "
+                          "taskid=%s", task_id)
+    else:
+        log.info("[scheduler][tick] no tasks returned for nodeid=%s", nodeid)
 
-def scheduler_loop(nodeid, 
-                    grpc_hostname='localhost', 
-                    grpc_port=50051, 
-                    interval=5,
-                    workdir="/home/leotest/",
-                    artifactdir="/artifacts/",
-                    executor_config="/executor-config.yaml",
-                    access_token=""):
-
-
-    log.info("entered scheduler loop")
-    sessionstore = memcache_client('memcached:11211')
-
-    # client = LeotestClient(
-    #     grpc_hostname=grpc_hostname, 
-    #     grpc_port=grpc_port,
-    #     userid=nodeid, access_token=access_token)
-    
-    exec_hook = "cd %s && /usr/local/bin/python -m node.executor" % workdir
-    cron_scheduler = LeotestJobSchedulerCron(executor_path=exec_hook,
-                                        nodeid=nodeid,
-                                        artifactdir=artifactdir,
-                                        grpc_hostname=grpc_hostname, 
-                                        grpc_port=grpc_port,
-                                        executor_config=executor_config,
-                                        access_token=access_token)
+    # ------------------------------------------------------------------
+    # Scavenger mode check
+    # ------------------------------------------------------------------
+    log.info("[scheduler][tick] checking scavenger mode nodeid=%s", nodeid)
+    try:
+        scav_msg = MessageToDict(client.get_scavenger_status(nodeid))
+        log.info("[scheduler][tick] scavenger status response: %s", scav_msg)
+        if scav_msg.get("scavengerModeActive"):
+            log.warning("[scheduler][tick] SCAVENGER MODE IS ACTIVE nodeid=%s — "
+                        "evicting all overhead containers", nodeid)
+            thread = threading.Thread(
+                target=kill_all_jobs,
+                args=[client, nodeid, sessionstore],
+                daemon=True)
+            thread.start()
+        else:
+            log.info("[scheduler][tick] scavenger mode not active nodeid=%s", nodeid)
+    except Exception:
+        log.exception("[scheduler][tick] FAILED to fetch scavenger status nodeid=%s", nodeid)
 
 
-    atq_scheduler = LeotestJobSchedulerAtq(executor_path=exec_hook,
-                                        nodeid=nodeid,
-                                        artifactdir=artifactdir,
-                                        grpc_hostname=grpc_hostname, 
-                                        grpc_port=grpc_port,
-                                        executor_config=executor_config,
-                                        access_token=access_token)
+def scheduler_loop(nodeid,
+                   grpc_hostname="localhost",
+                   grpc_port=50051,
+                   interval=cfg.SCHEDULER_INTERVAL_SECS,
+                   workdir=cfg.WORKDIR,
+                   artifactdir=cfg.ARTIFACTDIR,
+                   executor_config=cfg.EXECUTOR_CONFIG,
+                   access_token=""):
 
-    # task_scheduler = LeotestTaskSchedulerAtq(executor_path=exec_hook,
-    #                                     nodeid=nodeid,
-    #                                     artifactdir=artifactdir,
-    #                                     grpc_hostname=grpc_hostname, 
-    #                                     grpc_port=grpc_port,
-    #                                     executor_config=executor_config)
+    cfg.log_config_summary()
+    log.info("[scheduler] ===== LEOScope Scheduler Starting =====")
+    log.info("[scheduler] nodeid=%s grpc=%s:%d interval=%ds workdir=%s artifactdir=%s",
+             nodeid, grpc_hostname, grpc_port, interval, workdir, artifactdir)
+
+    # ------------------------------------------------------------------
+    # Memcached session store
+    # ------------------------------------------------------------------
+    memcached_addr = (cfg.MEMCACHED_HOST, cfg.MEMCACHED_PORT)
+    log.info("[scheduler] connecting to memcached at %s:%d", cfg.MEMCACHED_HOST, cfg.MEMCACHED_PORT)
+    sessionstore = memcache_client(memcached_addr)
+
+    # ------------------------------------------------------------------
+    # Job schedulers
+    # ------------------------------------------------------------------
+    exec_hook = "cd %s && %s -m node.executor" % (workdir, cfg.PYTHON_BIN)
+    log.info("[scheduler] executor hook: %s", exec_hook)
+
+    cron_scheduler = LeotestJobSchedulerCron(
+        executor_path=exec_hook,
+        nodeid=nodeid,
+        artifactdir=artifactdir,
+        grpc_hostname=grpc_hostname,
+        grpc_port=grpc_port,
+        executor_config=executor_config,
+        access_token=access_token)
+
+    atq_scheduler = LeotestJobSchedulerAtq(
+        executor_path=exec_hook,
+        nodeid=nodeid,
+        artifactdir=artifactdir,
+        grpc_hostname=grpc_hostname,
+        grpc_port=grpc_port,
+        executor_config=executor_config,
+        access_token=access_token)
 
     task_scheduler = LeotestTaskSchedulerPopen(
-                                executor_path="/usr/local/bin/python",
-                                module_name="node.executor",
-                                workdir=workdir,
-                                nodeid=nodeid,
-                                artifactdir=artifactdir,
-                                grpc_hostname=grpc_hostname, 
-                                grpc_port=grpc_port,
-                                executor_config=executor_config,
-                                access_token=access_token)
-
-    """
-    pull node information
-    """
-    client = LeotestClient(
-        grpc_hostname=grpc_hostname, 
+        executor_path=cfg.PYTHON_BIN,
+        module_name="node.executor",
+        workdir=workdir,
+        nodeid=nodeid,
+        artifactdir=artifactdir,
+        grpc_hostname=grpc_hostname,
         grpc_port=grpc_port,
-        userid=nodeid, access_token=access_token)
-    
-    res = client.get_config()
+        executor_config=executor_config,
+        access_token=access_token)
 
-    log.info(MessageToDict(res))
-    config = MessageToDict(res)['config']
-    weather_api_key = config['weather']['apikey']
+    # ------------------------------------------------------------------
+    # gRPC client + initial config fetch
+    # ------------------------------------------------------------------
+    client = LeotestClient(
+        grpc_hostname=grpc_hostname,
+        grpc_port=grpc_port,
+        userid=nodeid,
+        access_token=access_token)
 
-    res = client.get_nodes(nodeid=nodeid)
-    msg = MessageToDict(res)
-    log.info(msg)
+    log.info("[scheduler] fetching global config from orchestrator")
+    try:
+        res = client.get_config()
+        config = MessageToDict(res).get("config", {})
+        weather_api_key = config.get("weather", {}).get("apikey", "")
+        log.info("[scheduler] global config fetched ok; weather_api_key=<redacted if set: %s>",
+                 "yes" if weather_api_key else "no")
+    except Exception:
+        log.exception("[scheduler] FAILED to fetch global config from orchestrator")
+        weather_api_key = ""
 
-    if 'nodes' in msg and len(msg['nodes']) >=1:
-        coords = MessageToDict(res)['nodes'][0]['coords']
-    else:
-        log.error('node not registered with the orchestrator.')
+    # ------------------------------------------------------------------
+    # Node registration check + coordinates
+    # ------------------------------------------------------------------
+    log.info("[scheduler] fetching node info for nodeid=%s", nodeid)
+    try:
+        res = client.get_nodes(nodeid=nodeid)
+        msg = MessageToDict(res)
+        log.info("[scheduler] node response: %s", msg)
+
+        if "nodes" in msg and len(msg["nodes"]) >= 1:
+            coords = msg["nodes"][0].get("coords", "")
+            log.info("[scheduler] node coords: %s", coords)
+        else:
+            log.error("[scheduler] node not registered with orchestrator: nodeid=%s — exiting", nodeid)
+            exit(1)
+    except Exception:
+        log.exception("[scheduler] FAILED to fetch node info for nodeid=%s — exiting", nodeid)
         exit(1)
 
-    log.info(MessageToDict(res))
-    lat, lon = coords.split(',')
+    lat, lon = coords.split(",")
+    log.info("[scheduler] node location: lat=%s lon=%s", lat, lon)
 
-
+    # ------------------------------------------------------------------
+    # Trigger monitors
+    # ------------------------------------------------------------------
     trigger_module = LeotestTriggerMode()
+
     dockermon = LeotestDockerNetworkMonitor(trigger_module)
-    log.info('init dockermon')
-    # dockermon.run_async()
+    log.info("[scheduler] docker network monitor initialised")
 
     i_api, i_lat, i_lon, i_ele = get_weather_mon_info()
-    satmon = LeotestSatelliteMonitor(trigger_module, name=nodeid, lat=lat, lon=lon, ele=i_ele)
-    log.info('init satmon')
-    satmon.run_async()
-    
 
-    weathermon = LeotestWeatherMonitor(trigger_module, api=i_api, lat=i_lat, lon=i_lon, api_key=weather_api_key)
-    log.info('init weathermon')
+    satmon = LeotestSatelliteMonitor(trigger_module, name=nodeid, lat=lat, lon=lon, ele=i_ele)
+    log.info("[scheduler] satellite monitor initialised; starting async")
+    satmon.run_async()
+
+    weathermon = LeotestWeatherMonitor(
+        trigger_module, api=i_api, lat=i_lat, lon=i_lon, api_key=weather_api_key)
+    log.info("[scheduler] weather monitor initialised; starting async")
     weathermon.run_async()
 
-    # check if terminal exists 
-    log.info('check if terminal exists')
-    r = redis.Redis(host='redis', port='6379', db=0, decode_responses=True)
+    # ------------------------------------------------------------------
+    # Wait for Starlink terminal discovery
+    # ------------------------------------------------------------------
+    log.info("[scheduler] waiting for Starlink terminal discovery via Redis %s:%d",
+             cfg.REDIS_HOST, cfg.REDIS_PORT)
+    r = redis.Redis(host=cfg.REDIS_HOST, port=cfg.REDIS_PORT, db=cfg.REDIS_DB, decode_responses=True)
+
     while True:
-        dish_status = r.get('starlink-terminal-found')
-        log.info('dish_status=%s' % dish_status)
+        dish_status = r.get("starlink-terminal-found")
+        log.info("[scheduler] dish_status=%s", dish_status)
         if not dish_status:
             time.sleep(1)
-            log.info('waiting for terminal (dish) status...')
+            log.info("[scheduler] waiting for Starlink terminal (dish) status from Redis...")
         else:
-            if dish_status == 'True':
-                log.info('getting starlink terminal id')
-                utid = r.get('starlink-terminal-id')
-                log.info('starlink terminal found; utid=%s; initiating gRPC monitor.' % utid)
-
-                grpcmon = LeotestGrpcMonitor(trigger_module, utid, 
-                            fields=['uplink_throughput_bps', 
-                                    'downlink_throughput_bps', 
-                                    'pop_ping_latency_ms',
-                                    'direction_azimuth',
-                                    'direction_elevation',
-                                    'currently_obstructed',
-                                    'fraction_obstructed'])
+            if dish_status == "True":
+                utid = r.get("starlink-terminal-id")
+                log.info("[scheduler] Starlink terminal found utid=%s — starting gRPC monitor", utid)
+                grpcmon = LeotestGrpcMonitor(
+                    trigger_module, utid,
+                    fields=["uplink_throughput_bps",
+                            "downlink_throughput_bps",
+                            "pop_ping_latency_ms",
+                            "direction_azimuth",
+                            "direction_elevation",
+                            "currently_obstructed",
+                            "fraction_obstructed"])
                 grpcmon.run(run_async=True)
+                log.info("[scheduler] gRPC monitor started for utid=%s", utid)
             else:
-                log.info('no starlink terminal found; skipping init gRPC monitor.')
-            
+                log.info("[scheduler] no Starlink terminal found — skipping gRPC monitor")
             break
 
+    # ------------------------------------------------------------------
+    # Main scheduler loop
+    # ------------------------------------------------------------------
+    log.info("[scheduler] entering main scheduler loop: interval=%ds", interval)
+    tick = 0
     while True:
-        # _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_scheduler, 
-        #                    sessionstore, trigger_module, log)
-        args = (nodeid, client, cron_scheduler, atq_scheduler, task_scheduler, 
-                           sessionstore, trigger_module, log, )
+        tick += 1
+        log.info("[scheduler] ===== TICK #%d nodeid=%s =====", tick, nodeid)
+        args = (nodeid, client, cron_scheduler, atq_scheduler, task_scheduler,
+                sessionstore, trigger_module, log)
         p = Process(target=_scheduler_execute, args=args)
         p.start()
-        p.join(60) # wait 60 seconds for each scheduler invocation
+        p.join(60)
         if p.is_alive():
+            log.warning("[scheduler] tick #%d timed out after 60s — terminating subprocess", tick)
             p.terminate()
-
+        else:
+            log.info("[scheduler] tick #%d completed exitcode=%s", tick, p.exitcode)
         time.sleep(interval)
-
-# print('--- Test Job ---')
-# job_params = {
-#     "mode": "docker",
-#     "deploy": "repository=hello-world;tag=latest",
-#     "execute": "image=hello-world",
-#     "finish": ""
-# }
-
-# job = LeotestJobCron(jobid='test_job', job_params=job_params)
-
-# print(datetime.now())
-# print(job.next_trigger_time())
-# print(job.serialize())
-
-# print('--- Test scheduler ---')
-# scheduler = LeotestJobSchedulerCron(executor_path='./executor.py')
-
-# jobs = scheduler.get_job_list()
-# print('current jobs: ', jobs)
-
-# print('adding job', job)
-# scheduler.add_job(job)
-
-# jobs = scheduler.get_job_list()
-# print('current jobs: ', jobs)
-# print(jobs[0].serialize())
-
-# print('removing job')
-# scheduler.remove_job(job)
-
-# jobs = scheduler.get_job_list()
-# print('current jobs: ', jobs)

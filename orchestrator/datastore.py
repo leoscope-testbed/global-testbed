@@ -78,7 +78,7 @@ class LeotestDatastoreMongo:
     def update_config(self, config):
         with self.client.start_session() as session:
             config["id"] = 0
-            print(config)
+            log.info("[datastore] update_config: %s", config)
             # self._config.insert_one(config, session=session)
             self._config.update_one({
                 'id': 0
@@ -583,18 +583,20 @@ class LeotestDatastoreMongo:
         return (True, "updated jobid start time successfully")
 
     def update_run(self, run: LeotestRun):
-        """add/update run on Leotest"""
+        """Add or update a run record in MongoDB."""
 
         document = run.document()
-        with self.client.start_session() as session: 
-            runid = document['runid']
-            self._runs.update_one({
-                'runid': runid
-            }, {
-                '$set': document
-            },
-            upsert=True, session=session)
-        
+        runid = document['runid']
+        log.info("[datastore] update_run runid=%s jobid=%s nodeid=%s status=%s message=%r",
+                 runid, document.get('jobid'), document.get('nodeid'),
+                 document.get('status'), document.get('status_message'))
+        with self.client.start_session() as session:
+            self._runs.update_one(
+                {'runid': runid},
+                {'$set': document},
+                upsert=True,
+                session=session)
+        log.debug("[datastore] update_run committed runid=%s", runid)
         return (0, "updated run successfully")
     
     def get_runs(self, runid=None, jobid=None, nodeid=None, userid=None, time_range=None, limit=None):
@@ -878,22 +880,26 @@ class LeotestDatastoreMongo:
         return (0, "updated node successfully")
 
     def get_scavenger_status(self, nodeid):
-        """get nodes"""
-        query={}
-        
+        """Return the scavenger_mode_active flag for a node, or None if not found."""
+        query = {}
         if nodeid:
-            query["nodeid"] = nodeid 
-        
+            query["nodeid"] = nodeid
+
         with self.client.start_session() as session:
             res = list(self._nodes.find(query, session=session))
 
-            if res:
-                node = res[0]
-                scavenger_mode_active = node["scavenger_mode_active"]
-                return scavenger_mode_active
-
-            else:
-                return None
+        if res:
+            node = res[0]
+            # BUG FIX: nodes registered before the scavenger feature was added may not
+            # have this field; use .get() with a False default instead of direct key access.
+            scavenger_mode_active = node.get("scavenger_mode_active", False)
+            log.info("[datastore] get_scavenger_status nodeid=%s scavenger_mode_active=%s",
+                     nodeid, scavenger_mode_active)
+            return scavenger_mode_active
+        else:
+            log.warning("[datastore] get_scavenger_status nodeid=%s not found in nodes collection",
+                        nodeid)
+            return None
 
     def set_scavenger_status(self, nodeid, scavenger_mode_status):
         """update a jobs start_time given jobid"""
@@ -909,17 +915,22 @@ class LeotestDatastoreMongo:
         return (0, "updated scavenger_mode_status successfully")
     
     def schedule_task(self, task: LeotestTask):
-        """schedule task"""
-        
+        """Persist a new task in MongoDB."""
+
         document = task.document()
-        with self.client.start_session() as session: 
-            exists = self._tasks.find_one({"id": document['taskid']}, 
-                                                    session=session)
-            if exists: 
+        taskid = document['taskid']
+        log.info("[datastore] schedule_task taskid=%s runid=%s jobid=%s nodeid=%s type=%s ttl_secs=%s",
+                 taskid, document.get('runid'), document.get('jobid'),
+                 document.get('nodeid'), document.get('task_type'), document.get('ttl_secs'))
+        with self.client.start_session() as session:
+            # NOTE: query uses "id" historically but the document stores "taskid"
+            exists = self._tasks.find_one({"taskid": taskid}, session=session)
+            if exists:
+                log.warning("[datastore] schedule_task DUPLICATE taskid=%s already exists", taskid)
                 return (1, 'task with the given id exists')
-            else:
-                self._tasks.insert_one(document, session=session)
-        
+            self._tasks.insert_one(document, session=session)
+
+        log.info("[datastore] schedule_task inserted taskid=%s", taskid)
         return (0, "task successfully scheduled")
 
 

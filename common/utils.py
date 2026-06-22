@@ -1,35 +1,38 @@
 import os
-import shutil 
+import shutil
 import grpc
-import time 
+import time
+import logging
 import requests
 import datetime
-# from datetime import timedelta
 import subprocess
 import socket
 import yaml
 from pyroute2 import IPRoute
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient,\
-  ResourceTypes, AccountSasPermissions, generate_blob_sas
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient, \
+    ResourceTypes, AccountSasPermissions, generate_blob_sas
+
+log = logging.getLogger(__name__)
+
 
 def time_now():
     now = datetime.datetime.utcnow()
     return now
 
 def read_yaml(file):
-  with open(file) as f:
-    try:
-      file_info = yaml.safe_load(f)
-      #print("Info : " + str(file_info))
-    except yaml.YAMLError as exc:
-      print(exc)
-  return file_info
+    with open(file) as f:
+        try:
+            file_info = yaml.safe_load(f)
+        except yaml.YAMLError:
+            log.exception("[utils] YAML parse error reading %s", file)
+            raise
+    return file_info
 
 def get_public_ip():
     """Returns own public IP address."""
-    info = read_yaml('ext_depen/ext_dependency.yaml')
-    ip = requests.get(info['server']['aws']).text.strip()
-    print("IP : " + str(ip))
+    info = read_yaml("ext_depen/ext_dependency.yaml")
+    ip = requests.get(info["server"]["aws"]).text.strip()
+    log.info("[utils] public IP: %s", ip)
     return str(ip)
 
 def get_weather_mon_info():
@@ -51,16 +54,12 @@ def execute(name, *args, **kwargs):
     opts = [name]
     for arg in args:
         opts.append(arg)
-    
     for key, val in kwargs.items():
-        opts.append('-%s' % key)
-        opts.append(val)      
-
-    print(opts)
+        opts.append("-%s" % key)
+        opts.append(val)
+    log.debug("[utils][execute] cmd=%s", opts)
     starttime = time_now()
-    output = subprocess.run(opts,
-                        text=True,
-                        capture_output=True)
+    output = subprocess.run(opts, text=True, capture_output=True)
     endtime = time_now()
     return starttime, endtime, output
 
@@ -68,10 +67,9 @@ def route(action, ip, gw, dev):
     with IPRoute() as ipr:
         try:
             ipr.route(action, dst=ip, gateway=gw, oif=ipr.link_lookup(ifname=dev))
-            # routes = ipr.get_routes(family=socket.AF_INET, dst=ip)
-            # print(routes)
         except Exception as e:
-            print("WARN: %s" % str(e))
+            log.warning("[utils][route] action=%s ip=%s gw=%s dev=%s error=%s",
+                        action, ip, gw, dev, e)
 
 
 class StorageDirectoryClient:
@@ -99,9 +97,10 @@ class StorageDirectoryClient:
     '''
     Upload a single file to a path inside the container
     '''
-    print(f'Uploading {source} to {dest}')
-    with open(source, 'rb') as data:
-      self.client.upload_blob(name=dest, data=data, connection_timeout=300)
+    log.info("[storage] uploading %s → %s (container=%s)", source, dest, self.container_name)
+    with open(source, "rb") as data:
+        self.client.upload_blob(name=dest, data=data, connection_timeout=300)
+    log.info("[storage] upload complete %s → %s", source, dest)
 
   def upload_dir(self, source, dest):
     '''
@@ -142,31 +141,31 @@ class StorageDirectoryClient:
       self.download_file(source, dest)
 
   def download_file(self, source, dest):
-    print('source=', source, "dest=", dest)
     '''
     Download a single file to a path on the local filesystem
     '''
-    # dest is a directory if ending with '/' or '.', otherwise it's a file
-    if dest.endswith('.'):
-      dest += '/'
-    blob_dest = dest + os.path.basename(source) if dest.endswith('/') else dest
-    # blob_dest = blob_dest.replace(":", "#")
-    print(f'Downloading {source} to {blob_dest}')
+    log.info("[storage] downloading source=%s dest=%s", source, dest)
+    if dest.endswith("."):
+        dest += "/"
+    blob_dest = dest + os.path.basename(source) if dest.endswith("/") else dest
     os.makedirs(os.path.dirname(blob_dest), exist_ok=True)
+    log.info("[storage] downloading blob=%s → local=%s", source, blob_dest)
     bc = self.client.get_blob_client(blob=source)
-    if not dest.endswith('/'):
-        with open(blob_dest, 'wb') as file:
-          data = bc.download_blob()
-          file.write(data.readall())
-  
+    if not dest.endswith("/"):
+        with open(blob_dest, "wb") as file:
+            data = bc.download_blob()
+            file.write(data.readall())
+        log.info("[storage] download complete blob=%s → %s", source, blob_dest)
+
   def check_blob_exists(self, source):
-    print('source=', source)
     '''
     Check if a blob exists
     '''
-    # blob_dest = blob_dest.replace(":", "#")
+    log.debug("[storage] check_blob_exists source=%s container=%s", source, self.container_name)
     bc = self.client.get_blob_client(blob=source)
-    return bc.exists()
+    exists = bc.exists()
+    log.debug("[storage] check_blob_exists source=%s exists=%s", source, exists)
+    return exists
 
   def ls_files(self, path, recursive=False):
     '''
@@ -204,10 +203,11 @@ class StorageDirectoryClient:
     Remove a single file, or remove a path recursively
     '''
     if recursive:
-      self.rmdir(path)
+        self.rmdir(path)
     else:
-      print(f'Deleting {path}')
-      self.client.delete_blob(path)
+        log.info("[storage] deleting blob path=%s", path)
+        self.client.delete_blob(path)
+        log.info("[storage] blob deleted path=%s", path)
 
   def rmdir(self, path):
     '''
@@ -215,13 +215,15 @@ class StorageDirectoryClient:
     '''
     blobs = self.ls_files(path, recursive=True)
     if not blobs:
-      return
+        log.info("[storage] rmdir: no blobs found under path=%s — nothing to delete", path)
+        return
 
-    if not path == '' and not path.endswith('/'):
-      path += '/'
+    if not path == "" and not path.endswith("/"):
+        path += "/"
     blobs = [path + blob for blob in blobs]
-    print(f'Deleting {", ".join(blobs)}')
+    log.info("[storage] deleting %d blobs under path=%s", len(blobs), path)
     self.client.delete_blobs(*blobs)
+    log.info("[storage] rmdir complete path=%s deleted=%d", path, len(blobs))
 
   def get_sas_url(self, blob_name):
       
@@ -263,30 +265,36 @@ in CSV format
 class TerminalGrpcDataCsv:
     def __init__(self, api_path, logfile):
         self.exec_hook = "%s/dish_grpc_text.py" % api_path
-        self.logfile = logfile 
-        self.p = None 
+        self.logfile = logfile
+        self.p = None
 
     def run(self, _async=True):
+        from common import config as cfg
+        python_bin = cfg.PYTHON_BIN
 
-        f = open(self.logfile, "w")
-        opts = ['/usr/local/bin/python', self.exec_hook, 'status', '-t', '1']
-        opts1 = opts[:]
-        opts1.extend(['-H'])
-        opts2 = opts[:] 
-        opts2.extend(['-O', self.logfile])
-        print('gRPC API: writing headers')
-        print(opts1)
-        subprocess.call(opts1, stdout=f)
-        f.close()
-        print('gRPC API: polling grpc data')
-        print(opts2)
-        self.p = subprocess.Popen(opts2)
+        log.info("[grpc_csv] writing CSV headers: logfile=%s exec=%s",
+                 self.logfile, self.exec_hook)
+        opts = [python_bin, self.exec_hook, "status", "-t", "1"]
+        opts_header = opts[:] + ["-H"]
+        opts_poll   = opts[:] + ["-O", self.logfile]
+
+        with open(self.logfile, "w") as f:
+            log.debug("[grpc_csv] header cmd=%s", opts_header)
+            subprocess.call(opts_header, stdout=f)
+        log.info("[grpc_csv] CSV headers written to %s", self.logfile)
+
+        log.info("[grpc_csv] starting gRPC poll process: cmd=%s async=%s", opts_poll, _async)
+        self.p = subprocess.Popen(opts_poll)
+        log.info("[grpc_csv] gRPC poll process started pid=%s", self.p.pid)
 
         if not _async:
             self.p.wait()
-    
+            log.info("[grpc_csv] gRPC poll process exited returncode=%s", self.p.returncode)
+
     def stop(self):
         if self.p:
+            log.info("[grpc_csv] stopping gRPC poll process pid=%s", self.p.pid)
             self.p.kill()
+            log.info("[grpc_csv] gRPC poll process killed pid=%s", self.p.pid)
         else:
-            print('gRPC API: error -- process is None')
+            log.warning("[grpc_csv] stop() called but process is None — was run() called?")
