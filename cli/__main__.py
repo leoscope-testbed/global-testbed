@@ -2,17 +2,17 @@ import yaml
 import argparse
 from common.client import LeotestClient
 from ext_depen.ext_dependency_test import test_ext_dependency
-
+from common import config as cfg
 
 def main():
     parser = argparse.ArgumentParser(description='Leotest command line interface.')
 
     parser.add_argument("--grpc-host", type=str, required=False, 
-                                            default='20.168.9.14',
+                                            default=cfg.GRPC_HOSTNAME,
                                             help='gRPC host')
 
     parser.add_argument("--grpc-port", type=str, required=False, 
-                                            default='50051',
+                                            default=cfg.GRPC_PORT,
                                             help='gRPC port')
 
     parser.add_argument("--userid", type=str, required=False, 

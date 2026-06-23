@@ -9,23 +9,25 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+from common import config as cfg
+
 def main():
     parser = argparse.ArgumentParser(description='Leotest orchestrator.')
     parser.add_argument("--grpc-hostname", type=str, required=False, 
-                                            help='hostname', default='localhost')
+                                            help='hostname', default=cfg.GRPC_HOST_SERVICE_NAME)
     parser.add_argument("--grpc-port", type=int, required=False, 
-                                            help='port', default=50051)
+                                            help='port', default=cfg.GRPC_PORT)
     parser.add_argument("--grpc-workers", type=int, required=False, 
                                             help='workers', default=10)
 
     parser.add_argument("--db-server", type=str, required=False, 
-                                help='database server', default='localhost')
+                                help='database server', default=cfg.MONGO_HOST)
 
     parser.add_argument("--db-port", type=int, required=False, 
-                                help='database port', default=27017)
+                                help='database port', default=cfg.MONGO_PORT)
 
     parser.add_argument("--db-name", type=str, required=False, 
-                                help='database name', default='leotest')
+                                help='database name', default=cfg.MONGO_DB)
     
     parser.add_argument("--admin-access-token", type=str, required=False, 
                                 help='access token for admin', 

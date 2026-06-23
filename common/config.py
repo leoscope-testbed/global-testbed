@@ -43,10 +43,15 @@ def _opt_int(key: str, default: int) -> int:
 # ---------------------------------------------------------------------------
 # gRPC / Orchestrator
 # ---------------------------------------------------------------------------
+GRPC_HOST_SERVICE_NAME = _opt("LEOSCOPE_GRPC_HOSTNAME", "localhost")
 GRPC_HOSTNAME = _opt("LEOSCOPE_GRPC_HOSTNAME", "localhost")
 GRPC_PORT = _opt_int("LEOSCOPE_GRPC_PORT", 50051)
 
 # TLS certificates — server reads key+crt, clients read crt as trust root
+
+PRIMARY_CERT_PATH = _opt("LEOSCOPE_PRIMARY_CERT_PATH", "certs/primary.crt")
+SECONDARY_CERT_PATH = _opt("LEOSCOPE_SECONDARY_CERT_PATH", "certs/secondary.crt")
+
 GRPC_CERT_PATH = _opt("LEOSCOPE_GRPC_CERT_PATH", "certs/server.crt")
 GRPC_KEY_PATH = _opt("LEOSCOPE_GRPC_KEY_PATH", "certs/server.key")
 
@@ -142,7 +147,9 @@ def log_config_summary() -> None:
     log.info("=" * 60)
     log.info("[config] LEOScope active configuration (secrets redacted)")
     log.info("[config] grpc_hostname=%s  grpc_port=%d", GRPC_HOSTNAME, GRPC_PORT)
+    log.info("[config] grpc_host_service_name=%s", GRPC_HOST_SERVICE_NAME)
     log.info("[config] grpc_cert_path=%s  grpc_key_path=%s", GRPC_CERT_PATH, GRPC_KEY_PATH)
+    log.info("[config] primary_cert_path=%s  secondary_cert_path=%s", PRIMARY_CERT_PATH, SECONDARY_CERT_PATH)
     log.info("[config] grpc_tls_target_name_override=%s", GRPC_TLS_TARGET_NAME_OVERRIDE)
     log.info("[config] grpc_max_workers=%d  grpc_timeout_secs=%d", GRPC_MAX_WORKERS, GRPC_TIMEOUT_SECS)
     log.info("[config] mongo_host=%s  mongo_port=%d  mongo_db=%s", MONGO_HOST, MONGO_PORT, MONGO_DB)

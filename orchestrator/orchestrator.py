@@ -34,6 +34,8 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+from common import config as cfg
+
 # BUG FIX: os.getenv returns None when not set; calling .strip() on None crashes at import time.
 LEOSCOPE_NODE_ADMIN_USERID = cfg.NODE_ADMIN_USERID
 
@@ -117,8 +119,8 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
     :param jwt_algo: JWT algorithm to use for authenticating the gRPC requests, defaults to ''
     :type jwt_algo: str, optional
     """
-    def __init__(self, db_server='localhost', db_port=27017, 
-                 db_name='leotest', admin_access_token='leotest-access-token',
+    def __init__(self, db_server=cfg.MONGO_HOST, db_port=cfg.MONGO_PORT, 
+                 db_name=cfg.MONGO_DB, admin_access_token='leotest-access-token',
                  jwt_secret='', jwt_algo=''):
         """Constructor for the orchestartor's gRPC service.
 
@@ -1896,15 +1898,15 @@ class LeotestOrchestrator:
     LEOScope's orchestartor.
     """
     def __init__(self,
-            grpc_hostname='localhost', 
-            grpc_port=50051, 
+            grpc_hostname=cfg.GRPC_HOST_SERVICE_NAME, 
+            grpc_port=cfg.GRPC_PORT, 
             admin_access_token='',
             jwt_secret='',
             jwt_algo='',
             grpc_max_workers=10,
-            db_server='localhost',
-            db_port=27017,
-            db_name='leotest'):
+            db_server=cfg.MONGO_HOST,
+            db_port=cfg.MONGO_PORT,
+            db_name=cfg.MONGO_DB):
         """
         :param grpc_hostname: Hostname or ip address on which to listen to 
             for in-coming rpc requests, defaults to 'localhost'

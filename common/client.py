@@ -8,6 +8,7 @@ import logging
 import common.leotest_pb2_grpc as pb2_grpc 
 import common.leotest_pb2 as pb2
 from common.utils import StorageDirectoryClient, time_now
+from common.config import cfg
 
 from tenacity import Retrying, retry, stop_after_attempt, wait_fixed, retry_if_exception
 from google.protobuf.json_format import Parse
@@ -24,8 +25,8 @@ log = logging.getLogger(__name__)
 class LeotestClient:
 
     def __init__(self,
-        grpc_hostname='localhost', 
-        grpc_port=50051, userid='admin', access_token='', jwt_access_token='',
+        grpc_hostname=cfg.GRPC_HOST_SERVICE_NAME, 
+        grpc_port=cfg.GRPC_PORT, userid='admin', access_token='', jwt_access_token='',
         conn_retry_num=3, conn_retry_wait=3, timeout=5):
 
         self.grpc_stub = None
@@ -91,17 +92,26 @@ class LeotestClient:
                 # channel = grpc.insecure_channel(
                 #     '{}:{}'.format(self.grpc_hostname, self.grpc_port))
 
-                client_dir = os.path.dirname(os.path.abspath(__file__))
-                cert_candidates = [
-                    os.path.join(os.getcwd(), 'certs', 'server.crt'),
-                    os.path.join(client_dir, '..', 'certs', 'server.crt'),
-                    os.path.join(client_dir, 'certs', 'server.crt'),
-                ]
-                cert_path = next(
-                    (path for path in cert_candidates if os.path.exists(path)),
-                    cert_candidates[0])
-                with open(cert_path, 'rb') as f:
-                    trusted_certs = f.read()
+                # client_dir = os.path.dirname(os.path.abspath(__file__))
+                # cert_candidates = [
+                #     os.path.join(os.getcwd(), 'certs', 'server.crt'),
+                #     os.path.join(client_dir, '..', 'certs', 'server.crt'),
+                #     os.path.join(client_dir, 'certs', 'server.crt'),
+                # ]
+                # cert_path = next(
+                #     (path for path in cert_candidates if os.path.exists(path)),
+                #     cert_candidates[0])
+                # with open(cert_path, 'rb') as f:
+                #     trusted_certs = f.read()
+
+                primary_path = cfg.PRIMARY_CERT_PATH
+                secondary_path = cfg.SECONDARY_CERT_PATH
+                if os.path.exists(primary_path):
+                    with open(primary_path, 'rb') as f:
+                        trusted_certs = f.read()
+                elif os.path.exists(secondary_path):
+                    with open(secondary_path, 'rb') as f:
+                        trusted_certs = f.read()
 
                 credentials = grpc.ssl_channel_credentials(root_certificates=trusted_certs)
                 # make sure that all headers are in lowecase, otherwise grpc throws an exception
@@ -114,7 +124,7 @@ class LeotestClient:
                 # use this if you want standard "Authorization" header
                 #call_credentials = grpc.access_token_call_credentials("test_access_token")
 
-                cert_cn = "localhost" # or parse it out of the cert data
+                cert_cn = cfg.GRPC_HOSTNAME # or parse it out of the cert data
                 options = (('grpc.ssl_target_name_override', cert_cn,),)
 
                 composite_credentials = grpc.composite_channel_credentials(credentials, call_credentials)
