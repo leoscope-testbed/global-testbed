@@ -301,19 +301,26 @@ class LeotestDatastoreMongo:
     def update_access_request_email_status(self, email, email_status, status_at):
         email = email.strip().lower()
         status_at = self._coerce_datetime(status_at)
-        status_field = 'email_sent_at' if email_status == 'sent' else 'email_failed_at'
+
+        timestamp_field_map = {
+            'sent': 'email_sent_at',
+            'failed': 'email_failed_at',
+        }
+
+        update_fields = {
+            'access_request.email_status': email_status,
+            'access_request.updated_at': status_at,
+            'updated_at': status_at,
+        }
+        if email_status in timestamp_field_map:
+            update_fields['access_request.%s' % timestamp_field_map[email_status]] = status_at
 
         with self.client.start_session() as session:
             result = self._users.update_one({
                 'id': email,
                 'registration_status': {'$in': list(self.PENDING_REGISTRATION_STATES)}
             }, {
-                '$set': {
-                    'access_request.email_status': email_status,
-                    'access_request.%s' % status_field: status_at,
-                    'access_request.updated_at': status_at,
-                    'updated_at': status_at
-                }
+                '$set': update_fields
             }, session=session)
 
         if result.matched_count == 0:
