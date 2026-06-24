@@ -7,6 +7,7 @@ import os
 import glob
 import random
 import logging
+import json
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
 import zipfile
@@ -34,16 +35,15 @@ logging.basicConfig(
 # Load environment variables
 client_name = os.environ.get('CLIENT_NAME', 'Unknown')
 upload_url = os.environ.get('UPLOAD_URL', 'http://example.com/upload')
-IPERF_SERVER = os.environ.get('IPERF_SERVER', 'iperf.example.com')
-IPERF_PORT = os.environ.get('IPERF_PORT', '2025')
-SPEEDTEST_ENABLED = os.environ.get('SPEEDTEST_ENABLED', 'true').lower() in {'1', 'true', 'yes', 'on'}
+# Starlink dish gRPC endpoint for embedded speed test
+# Try 192.168.1.1:9000 if the default fails
+STARLINK_GRPC_EP = os.environ.get('STARLINK_GRPC_EP', '192.168.100.1:9200')
+STARLINK_GRPC_METHOD = "SpaceX.API.Device.Device/Handle"
 
 # Log the environment variables at startup
 logging.info(f"Client Name: {client_name}")
 logging.info(f"Upload URL: {upload_url}")
-logging.info(f"Iperf Server: {IPERF_SERVER}")
-logging.info(f"Iperf Port: {IPERF_PORT}")
-logging.info(f"Speedtest Enabled: {SPEEDTEST_ENABLED}")
+logging.info(f"Starlink gRPC endpoint: {STARLINK_GRPC_EP}")
 
 
 async def zip_file(file_path):
@@ -145,172 +145,86 @@ async def run_continuous_grpc_measurement():
             break
 
 
-async def schedule_iperf_tests(scheduler):
+async def schedule_starlink_speedtests(scheduler):
     """
-    Schedule iperf tests (both uplink and downlink) once every hour.
-    The first test runs immediately, and subsequent tests are scheduled
-    at random times within each hour.
+    Schedule Starlink embedded speed tests once every hour at a random offset.
+    The first test runs immediately on startup.
     """
-    # First, schedule an immediate iperf test
     now = datetime.datetime.now()
-    # Schedule downlink test immediately
-    scheduler.add_job(
-        run_iperf_test,
-        args=['downlink'],
-        trigger=DateTrigger(run_date=now)
-    )
-    logging.info(f"Scheduled initial downlink iperf test at {now.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Schedule uplink test 1 minute after downlink test
-    uplink_time = now + datetime.timedelta(minutes=1)
-    scheduler.add_job(
-        run_iperf_test,
-        args=['uplink'],
-        trigger=DateTrigger(run_date=uplink_time)
-    )
-    logging.info(f"Scheduled initial uplink iperf test at {uplink_time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    while True:
-        now = datetime.datetime.now()
-        next_hour = now.replace(minute=0, second=0, microsecond=0) + datetime.timedelta(hours=1)
-
-        # Total time remaining in the hour
-        remaining_seconds_in_hour = int((next_hour - now).total_seconds())
-
-        iperf_duration = 60  # Duration of each iperf test in seconds
-        min_gap = 120        # Minimum gap between tests in seconds
-
-        # Minimum total duration required for both tests
-        minimum_total_duration = iperf_duration + min_gap
-
-        if remaining_seconds_in_hour <= minimum_total_duration:
-            # Not enough time left in the hour, wait until next hour
-            sleep_seconds = remaining_seconds_in_hour
-            logging.info(f"Not enough time left in the hour to schedule tests. Sleeping for {sleep_seconds} seconds until next hour.")
-            await asyncio.sleep(sleep_seconds)
-            continue
-
-        # Generate random delay between 0 and (remaining_seconds_in_hour - minimum_total_duration)
-        max_start_time = remaining_seconds_in_hour - minimum_total_duration
-        test_delay = random.randint(0, max_start_time)
-
-        downlink_time = now + datetime.timedelta(seconds=test_delay)
-        scheduler.add_job(
-            run_iperf_test,
-            args=['downlink'],
-            trigger=DateTrigger(run_date=downlink_time)
-        )
-        logging.info(f"Scheduled downlink iperf test at {downlink_time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        # Schedule uplink test after min_gap seconds
-        uplink_time = downlink_time + datetime.timedelta(seconds=min_gap)
-        scheduler.add_job(
-            run_iperf_test,
-            args=['uplink'],
-            trigger=DateTrigger(run_date=uplink_time)
-        )
-        logging.info(f"Scheduled uplink iperf test at {uplink_time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        # Wait until the next hour to schedule again
-        sleep_seconds = (next_hour - now).total_seconds()
-        if sleep_seconds > 0:
-            logging.info(f"Sleeping for {sleep_seconds} seconds until next scheduling.")
-            await asyncio.sleep(sleep_seconds)
-        else:
-            # In rare cases where sleep_seconds is negative or zero
-            logging.warning("Sleep duration is non-positive. Correcting to 60 seconds.")
-            await asyncio.sleep(60)
-
-
-async def schedule_speedtest_tests(scheduler):
-    """
-    Schedule Ookla Speedtest once every hour. This becomes the default dashboard
-    throughput source while the legacy iperf cadence stays in place.
-    """
-    if not SPEEDTEST_ENABLED:
-        logging.info("Speedtest scheduling is disabled.")
-        return
-
-    now = datetime.datetime.now()
-    scheduler.add_job(
-        run_speedtest,
-        trigger=DateTrigger(run_date=now)
-    )
-    logging.info(f"Scheduled initial Speedtest at {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    scheduler.add_job(run_starlink_speedtest, trigger=DateTrigger(run_date=now))
+    logging.info(f"Scheduled initial Starlink speed test at {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
     while True:
         now = datetime.datetime.now()
         next_hour = now.replace(minute=0, second=0, microsecond=0) + datetime.timedelta(hours=1)
         remaining_seconds_in_hour = int((next_hour - now).total_seconds())
+        # Leave at least 3 minutes at end of hour to avoid overlap with gRPC poll window
         test_delay = random.randint(0, max(remaining_seconds_in_hour - 180, 0))
         speedtest_time = now + datetime.timedelta(seconds=test_delay)
-        scheduler.add_job(
-            run_speedtest,
-            trigger=DateTrigger(run_date=speedtest_time)
-        )
-        logging.info(f"Scheduled Speedtest at {speedtest_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        scheduler.add_job(run_starlink_speedtest, trigger=DateTrigger(run_date=speedtest_time))
+        logging.info(f"Scheduled Starlink speed test at {speedtest_time.strftime('%Y-%m-%d %H:%M:%S')}")
         await asyncio.sleep(max((next_hour - now).total_seconds(), 60))
 
-async def run_iperf_test(mode):
+
+async def run_starlink_speedtest():
     """
-    Run an iperf test in the specified mode ('uplink' or 'downlink').
+    Run the Starlink embedded speed test via grpcurl against the dish gRPC API.
+    Polls until the test finishes, then saves and uploads the JSON result.
     """
-    if mode == 'uplink':
-        # For uplink test, use '-R'
-        command = ['iperf3', '-c', IPERF_SERVER, '-p', IPERF_PORT, '-t', '60', '-R']
-    elif mode == 'downlink':
-        # For downlink test, do not use '-R'
-        command = ['iperf3', '-c', IPERF_SERVER, '-p', IPERF_PORT, '-t', '60']
-    else:
-        logging.error(f"Invalid iperf mode: {mode}")
+    ep = STARLINK_GRPC_EP
+    method = STARLINK_GRPC_METHOD
+
+    # Kick off the speed test
+    start_cmd = ['grpcurl', '-plaintext', '-d', '{"start_speedtest":{}}', ep, method]
+    rc, out = await run_subprocess(start_cmd)
+    if rc != 0:
+        logging.error(f"Failed to start Starlink speed test (rc={rc}): {out}")
+        return
+
+    # Poll for completion (up to 120 s)
+    status_cmd = ['grpcurl', '-plaintext', '-d', '{"get_speedtest_status":{}}', ep, method]
+    result = None
+    for _ in range(120):
+        await asyncio.sleep(1)
+        rc, out = await run_subprocess(status_cmd)
+        if rc != 0:
+            logging.error(f"Speed test status poll failed (rc={rc}): {out}")
+            break
+        try:
+            data = json.loads(out)
+        except json.JSONDecodeError:
+            logging.error(f"Failed to parse speed test status JSON: {out}")
+            continue
+
+        status = data.get('getSpeedtestStatus', {}).get('status', {})
+        if status.get('running'):
+            continue
+
+        down_samples = status.get('down', {}).get('throughputsMbps', [])
+        up_samples = status.get('up', {}).get('throughputsMbps', [])
+        result = {
+            'id': status.get('id'),
+            'down_samples_mbps': down_samples,
+            'up_samples_mbps': up_samples,
+            'latest_down_mbps': down_samples[-1] if down_samples else None,
+            'latest_up_mbps': up_samples[-1] if up_samples else None,
+        }
+        break
+
+    if result is None:
+        logging.error("Starlink speed test did not complete within 120 s timeout")
         return
 
     date_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    filename = f"iperf_{mode}_{client_name}_{date_str}.txt"
+    filename = f"starlink_speedtest_{client_name}_{date_str}.json"
     file_path = os.path.join(data_dir, filename)
     try:
-        returncode, output = await run_subprocess(command)
-        if returncode == 0:
-            async with aiofiles.open(file_path, 'w') as file:
-                await file.write(output)
-            logging.info(f"Iperf {mode} test completed and saved to {file_path}")
-            # Immediately upload the data
-            await send_file(file_path)
-        elif returncode == 1:
-            logging.error(f"Iperf {mode} test failed: Server not reachable.")
-            logging.error(f"Output: {output}")
-        else:
-            logging.error(f"Iperf {mode} test failed with return code {returncode}")
-            logging.error(f"Output: {output}")
+        async with aiofiles.open(file_path, 'w') as f:
+            await f.write(json.dumps(result))
+        logging.info(f"Starlink speed test result saved to {file_path}")
+        await send_file(file_path)
     except Exception as e:
-        logging.error(f"An unexpected error occurred during iperf {mode} test: {e}")
-
-
-async def run_speedtest():
-    """
-    Run Ookla Speedtest CLI and upload its JSON result for dashboard ingestion.
-    """
-    command = [
-        'speedtest',
-        '--format=json',
-        '--accept-license',
-        '--accept-gdpr'
-    ]
-    date_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    filename = f"speedtest_{client_name}_{date_str}.txt"
-    file_path = os.path.join(data_dir, filename)
-    try:
-        returncode, output = await run_subprocess(command)
-        if returncode == 0:
-            async with aiofiles.open(file_path, 'w') as file:
-                await file.write(output)
-            logging.info(f"Speedtest completed and saved to {file_path}")
-            await send_file(file_path)
-        else:
-            logging.error(f"Speedtest failed with return code {returncode}")
-            logging.error(f"Output: {output}")
-    except Exception as e:
-        logging.error(f"An unexpected error occurred during Speedtest: {e}")
+        logging.error(f"An unexpected error occurred during Starlink speed test: {e}")
 
 async def run_subprocess(command, cwd=None):
     """
@@ -400,11 +314,8 @@ async def main():
     # Start the continuous gRPC measurement
     asyncio.create_task(run_continuous_grpc_measurement())
 
-    # Schedule iperf tests
-    asyncio.create_task(schedule_iperf_tests(scheduler))
-
-    # Schedule Speedtest throughput measurements for dashboard panels
-    asyncio.create_task(schedule_speedtest_tests(scheduler))
+    # Schedule Starlink embedded speed tests (replaces iperf3)
+    asyncio.create_task(schedule_starlink_speedtests(scheduler))
 
     # Start the cleanup task
     asyncio.create_task(cleanup_old_files())
