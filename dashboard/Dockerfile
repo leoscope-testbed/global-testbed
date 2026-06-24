@@ -9,10 +9,19 @@ COPY . /app
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git iperf3 procps tzdata curl gnupg ca-certificates
+    apt-get install -y --no-install-recommends git procps tzdata curl gnupg ca-certificates
 
-RUN curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | bash && \
-    apt-get install -y --no-install-recommends speedtest
+# Install grpcurl (used for Starlink embedded speed test)
+RUN GRPCURL_VERSION=1.9.1 && \
+    ARCH=$(uname -m) && \
+    case "$ARCH" in \
+        x86_64)  GRPCURL_ARCH="linux_amd64"  ;; \
+        aarch64) GRPCURL_ARCH="linux_arm64"  ;; \
+        armv7l|armv6l) GRPCURL_ARCH="linux_arm32" ;; \
+        *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
+    esac && \
+    curl -sL "https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_${GRPCURL_ARCH}.tar.gz" | \
+    tar -xz -C /usr/local/bin grpcurl
 
 # Set the timezone to Europe/London
 ENV TZ=Europe/London
@@ -31,7 +40,7 @@ RUN pip install -r starlink-grpc-tools/requirements.txt
 RUN pip install -r requirements.txt
 
 # Remove git and clean up apt cache to reduce image size
-RUN apt-get purge -y git curl gnupg && \
+RUN apt-get purge -y git curl gnupg ca-certificates && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
