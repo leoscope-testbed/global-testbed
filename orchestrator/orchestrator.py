@@ -1372,7 +1372,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             nodeid = request.node.nodeid
             name = request.node.name
             team = request.node.description
-            node_data = MessageToDict(request)['node']
+            node_data = MessageToDict(request, preserving_proto_field_name=True)['node']
             if role != LeotestUserRoles.ADMIN.value or not node_data.get('owner'):
                 node_data['owner'] = userid
 
