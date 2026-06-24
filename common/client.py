@@ -8,7 +8,7 @@ import logging
 import common.leotest_pb2_grpc as pb2_grpc 
 import common.leotest_pb2 as pb2
 from common.utils import StorageDirectoryClient, time_now
-from common.config import cfg
+from common import config as cfg
 
 from tenacity import Retrying, retry, stop_after_attempt, wait_fixed, retry_if_exception
 from google.protobuf.json_format import Parse
@@ -106,6 +106,7 @@ class LeotestClient:
 
                 primary_path = cfg.PRIMARY_CERT_PATH
                 secondary_path = cfg.SECONDARY_CERT_PATH
+                trusted_certs = None
                 if os.path.exists(primary_path):
                     with open(primary_path, 'rb') as f:
                         trusted_certs = f.read()
