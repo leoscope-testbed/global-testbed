@@ -15,13 +15,14 @@ RUN apt-get update && \
 RUN GRPCURL_VERSION=1.9.1 && \
     ARCH=$(uname -m) && \
     case "$ARCH" in \
-        x86_64)  GRPCURL_ARCH="linux_amd64"  ;; \
+        x86_64)  GRPCURL_ARCH="linux_x86_64" ;; \
         aarch64) GRPCURL_ARCH="linux_arm64"  ;; \
-        armv7l|armv6l) GRPCURL_ARCH="linux_arm32" ;; \
         *) echo "Unsupported arch: $ARCH" && exit 1 ;; \
     esac && \
-    curl -sL "https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_${GRPCURL_ARCH}.tar.gz" | \
-    tar -xz -C /usr/local/bin grpcurl
+    curl -fsSL "https://github.com/fullstorydev/grpcurl/releases/download/v${GRPCURL_VERSION}/grpcurl_${GRPCURL_VERSION}_${GRPCURL_ARCH}.tar.gz" \
+    -o /tmp/grpcurl.tar.gz && \
+    tar -xz -C /usr/local/bin -f /tmp/grpcurl.tar.gz grpcurl && \
+    rm /tmp/grpcurl.tar.gz
 
 # Set the timezone to Europe/London
 ENV TZ=Europe/London
