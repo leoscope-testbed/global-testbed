@@ -39,12 +39,9 @@ services:
     restart: always
     environment:
       - TZ=Europe/London
-      - CLIENT_NAME=test_node  # Match nodeid 
-      - UPLOAD_URL=https://leoscope.surrey.ac.uk/api/upload # Updated URL
-      - IPERF_SERVER=35.177.249.56
-      - IPERF_PORT=2025
-    ports:
-      - "2025:2025"
+      - CLIENT_NAME=test-node  # Must match --nodeid passed to the node service above
+      - UPLOAD_URL=https://netsys.surrey.ac.uk/upload # dashboard-data ingest service, NOT the leoscope website
+      - STARLINK_GRPC_EP=192.168.100.1:9200 # Local Starlink dish gRPC endpoint
     networks:
       - leotest-net
 

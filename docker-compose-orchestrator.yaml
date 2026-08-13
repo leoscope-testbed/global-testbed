@@ -56,8 +56,8 @@ services:
       - "--db-server=datastore_redesign"
       - "--db-port=27017"
       - "--db-name=${LEOSCOPE_REDESIGN_DB_NAME:-leotest}"
-      - "--admin-access-token=${LEOSCOPE_REDESIGN_ADMIN_ACCESS_TOKEN:-temp-redesign}"
-      - "--jwt-secret=${LEOSCOPE_REDESIGN_JWT_SECRET:-d1b9bf28b2325787ca0b33d3b218f961badb2e644f48e7b382129053a4338e43}"
+      - "--admin-access-token=${LEOSCOPE_REDESIGN_ADMIN_ACCESS_TOKEN:?set LEOSCOPE_REDESIGN_ADMIN_ACCESS_TOKEN in your .env}"
+      - "--jwt-secret=${LEOSCOPE_REDESIGN_JWT_SECRET:?set LEOSCOPE_REDESIGN_JWT_SECRET in your .env}"
       - "--jwt-algo=${LEOSCOPE_REDESIGN_JWT_ALGO:-HS256}"
     ports:
       - "${LEOSCOPE_REDESIGN_GRPC_PORT:-50052}:50051"

@@ -43,7 +43,7 @@ def _opt_int(key: str, default: int) -> int:
 # ---------------------------------------------------------------------------
 # gRPC / Orchestrator
 # ---------------------------------------------------------------------------
-GRPC_HOST_SERVICE_NAME = _opt("LEOSCOPE_GRPC_HOSTNAME", "localhost")
+GRPC_HOST_SERVICE_NAME = _opt("LEOSCOPE_GRPC_HOST_SERVICE_NAME", "localhost")  # hostname used in gRPC service discovery (DNS)
 GRPC_HOSTNAME = _opt("LEOSCOPE_GRPC_HOSTNAME", "localhost")
 GRPC_PORT = _opt_int("LEOSCOPE_GRPC_PORT", 50051)
 
@@ -137,9 +137,9 @@ SCHEDULER_RESCHED_BUFFER_SECS = _opt_int("LEOSCOPE_SCHEDULER_RESCHED_BUFFER_SECS
 # ---------------------------------------------------------------------------
 DASHBOARD_CLIENT_NAME = _opt("LEOSCOPE_DASHBOARD_CLIENT_NAME", "")
 DASHBOARD_UPLOAD_URL = _opt("LEOSCOPE_DASHBOARD_UPLOAD_URL", "")
-DASHBOARD_IPERF_SERVER = _opt("LEOSCOPE_DASHBOARD_IPERF_SERVER", "")
-DASHBOARD_IPERF_PORT = _opt_int("LEOSCOPE_DASHBOARD_IPERF_PORT", 2025)
-DASHBOARD_SPEEDTEST_ENABLED = _opt("LEOSCOPE_DASHBOARD_SPEEDTEST_ENABLED", "false").lower() in ("1", "true", "yes")
+# Starlink dish gRPC endpoint for the embedded speed test (dashboard agent)
+# Falls back to 192.168.1.1:9000 on older dish firmware
+DASHBOARD_STARLINK_GRPC_EP = _opt("LEOSCOPE_DASHBOARD_STARLINK_GRPC_EP", "192.168.100.1:9200")
 
 
 def log_config_summary() -> None:
