@@ -39,11 +39,14 @@ upload_url = os.environ.get('UPLOAD_URL', 'http://example.com/upload')
 # Try 192.168.1.1:9000 if the default fails
 STARLINK_GRPC_EP = os.environ.get('STARLINK_GRPC_EP', '192.168.100.1:9200')
 STARLINK_GRPC_METHOD = "SpaceX.API.Device.Device/Handle"
+# How often the continuous gRPC measurement is saved/uploaded; lower this for testing.
+GRPC_UPLOAD_INTERVAL_SECONDS = int(os.environ.get('GRPC_UPLOAD_INTERVAL_SECONDS', '3600'))
 
 # Log the environment variables at startup
 logging.info(f"Client Name: {client_name}")
 logging.info(f"Upload URL: {upload_url}")
 logging.info(f"Starlink gRPC endpoint: {STARLINK_GRPC_EP}")
+logging.info(f"gRPC upload interval: {GRPC_UPLOAD_INTERVAL_SECONDS}s")
 
 
 async def zip_file(file_path):
@@ -116,7 +119,7 @@ async def run_continuous_grpc_measurement():
                 continue
 
             current_time = datetime.datetime.now()
-            if (current_time - last_upload_time).total_seconds() >= 3600:  # Use total_seconds() for accuracy
+            if (current_time - last_upload_time).total_seconds() >= GRPC_UPLOAD_INTERVAL_SECONDS:
                 try:
                     # Save data to file
                     date_str = last_upload_time.strftime('%Y-%m-%d_%H-%M-%S')
