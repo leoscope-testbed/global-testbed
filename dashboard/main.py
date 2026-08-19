@@ -244,7 +244,12 @@ async def run_starlink_speedtest():
         logging.error("Starlink speed test did not complete within 120 s timeout")
         return
 
-    date_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    # UTC, not local time -- the ingest parser reads this filename timestamp
+    # straight into a TIMESTAMP WITHOUT TIME ZONE column as-is (same convention
+    # as the grpc CSV's datetimestamp_utc column). The container runs with
+    # TZ=Europe/London, so datetime.now() here would silently store rows an
+    # hour ahead of their true UTC instant during BST.
+    date_str = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')
     filename = f"starlink_speedtest_{client_name}_{date_str}.json"
     file_path = os.path.join(data_dir, filename)
     try:
