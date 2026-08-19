@@ -83,9 +83,18 @@ async def run_continuous_grpc_measurement():
     # Generate the header once. Retry until dish_grpc_text.py actually reaches the dish --
     # on failure it prints an error line instead of the real CSV header, and that error line
     # would otherwise get uploaded as if it were valid data (breaking the ingest-side parser).
+    #
+    # Modes: 'status' alone gives id/state/etc, but its pop_ping_drop_rate/pop_ping_latency_ms/
+    # downlink_throughput_bps/uplink_throughput_bps always read back as 0 on current dish
+    # firmware (protobuf zero-default for fields the live status RPC no longer populates).
+    # 'ping_drop'/'ping_latency'/'usage' pull the real per-second values from the dish's
+    # history ring buffer instead; the ingest-side parser (leoscope_dashboard repo) derives
+    # pop_ping_drop_rate/pop_ping_latency_ms/downlink_throughput_bps/uplink_throughput_bps
+    # from those fields.
     while True:
         header_process = await asyncio.create_subprocess_exec(
-            'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-H', '-g', STARLINK_GRPC_EP,
+            'python3', 'starlink-grpc-tools/dish_grpc_text.py',
+            'status', 'ping_drop', 'ping_latency', 'usage', '-H', '-g', STARLINK_GRPC_EP,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT
         )
@@ -107,7 +116,8 @@ async def run_continuous_grpc_measurement():
     # Start the continuous measurement process
     try:
         process = await asyncio.create_subprocess_exec(
-            'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-t', '1', '-g', STARLINK_GRPC_EP,
+            'python3', 'starlink-grpc-tools/dish_grpc_text.py',
+            'status', 'ping_drop', 'ping_latency', 'usage', '-t', '1', '-g', STARLINK_GRPC_EP,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT
         )
