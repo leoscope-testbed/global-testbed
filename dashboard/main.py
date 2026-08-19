@@ -80,16 +80,28 @@ async def run_continuous_grpc_measurement():
 
     last_upload_time = datetime.datetime.now()
 
-    # Generate the header once
-    header_process = await asyncio.create_subprocess_exec(
-        'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-H', '-g', STARLINK_GRPC_EP,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT
-    )
-    header_output = await header_process.stdout.read()
-    await header_process.wait()
+    # Generate the header once. Retry until dish_grpc_text.py actually reaches the dish --
+    # on failure it prints an error line instead of the real CSV header, and that error line
+    # would otherwise get uploaded as if it were valid data (breaking the ingest-side parser).
+    while True:
+        header_process = await asyncio.create_subprocess_exec(
+            'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-H', '-g', STARLINK_GRPC_EP,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+        header_output = await header_process.stdout.read()
+        await header_process.wait()
+        header = header_output.decode()
 
-    header = header_output.decode()  # Store the header for reuse
+        if header_process.returncode == 0 and header.startswith('datetimestamp_utc'):
+            break
+
+        logging.error(
+            f"dish_grpc_text.py header generation failed (rc={header_process.returncode}, "
+            f"target={STARLINK_GRPC_EP}): {header.strip()!r}. Retrying in 60s."
+        )
+        await asyncio.sleep(60)
+
     hourly_data = header  # Initialize `hourly_data` with the header
 
     # Start the continuous measurement process
