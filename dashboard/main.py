@@ -79,7 +79,7 @@ async def run_continuous_grpc_measurement():
 
     # Generate the header once
     header_process = await asyncio.create_subprocess_exec(
-        'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-H',
+        'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-H', '-g', STARLINK_GRPC_EP,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT
     )
@@ -92,7 +92,7 @@ async def run_continuous_grpc_measurement():
     # Start the continuous measurement process
     try:
         process = await asyncio.create_subprocess_exec(
-            'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-t', '1',
+            'python3', 'starlink-grpc-tools/dish_grpc_text.py', 'status', '-t', '1', '-g', STARLINK_GRPC_EP,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT
         )

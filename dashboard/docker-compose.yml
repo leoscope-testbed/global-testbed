@@ -9,5 +9,5 @@ services:
     environment:
       - TZ=Europe/London
       - CLIENT_NAME=star-test  # Must match the node's --nodeid
-      - UPLOAD_URL=https://netsys.surrey.ac.uk/upload # dashboard-data ingest service, NOT the leoscope website
+      - UPLOAD_URL=https://netsys.surrey.ac.uk/upload_dashboard # dashboard-data ingest service, NOT the leoscope website
       - STARLINK_GRPC_EP=192.168.100.1:9200 # Local Starlink dish gRPC endpoint
