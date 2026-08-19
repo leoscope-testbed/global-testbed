@@ -41,7 +41,8 @@ RUN pip install -r starlink-grpc-tools/requirements.txt
 RUN pip install -r requirements.txt
 
 # Remove git and clean up apt cache to reduce image size
-RUN apt-get purge -y git curl gnupg ca-certificates && \
+# NOTE: keep ca-certificates -- it's needed at runtime for HTTPS uploads (aiohttp) to netsys.surrey.ac.uk
+RUN apt-get purge -y git curl gnupg && \
     apt-get autoremove -y && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
