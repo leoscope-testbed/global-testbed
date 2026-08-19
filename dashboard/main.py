@@ -35,9 +35,16 @@ logging.basicConfig(
 # Load environment variables
 client_name = os.environ.get('CLIENT_NAME', 'Unknown')
 upload_url = os.environ.get('UPLOAD_URL', 'http://example.com/upload')
-# Starlink dish gRPC endpoint for embedded speed test
-# Try 192.168.1.1:9000 if the default fails
+# Starlink dish gRPC endpoint for continuous status/history telemetry.
 STARLINK_GRPC_EP = os.environ.get('STARLINK_GRPC_EP', '192.168.100.1:9200')
+# Endpoint for the embedded speed test (start_speedtest/get_speedtest_status).
+# On some nodes the dish itself doesn't implement start_speedtest (rc=76,
+# "Unimplemented"), but the Starlink router does, proxying it -- e.g.
+# 192.168.1.1:9000 instead of the dish's own 192.168.100.1:9200. Note that
+# router endpoint answers get_status/get_history with its OWN wifiGetStatus/
+# wifiGetHistory schema (empty for dish fields like device_info/uptime), so
+# it must never be used for STARLINK_GRPC_EP above.
+STARLINK_SPEEDTEST_EP = os.environ.get('STARLINK_SPEEDTEST_EP', STARLINK_GRPC_EP)
 STARLINK_GRPC_METHOD = "SpaceX.API.Device.Device/Handle"
 # How often the continuous gRPC measurement is saved/uploaded; lower this for testing.
 GRPC_UPLOAD_INTERVAL_SECONDS = int(os.environ.get('GRPC_UPLOAD_INTERVAL_SECONDS', '3600'))
@@ -46,6 +53,7 @@ GRPC_UPLOAD_INTERVAL_SECONDS = int(os.environ.get('GRPC_UPLOAD_INTERVAL_SECONDS'
 logging.info(f"Client Name: {client_name}")
 logging.info(f"Upload URL: {upload_url}")
 logging.info(f"Starlink gRPC endpoint: {STARLINK_GRPC_EP}")
+logging.info(f"Starlink speedtest gRPC endpoint: {STARLINK_SPEEDTEST_EP}")
 logging.info(f"gRPC upload interval: {GRPC_UPLOAD_INTERVAL_SECONDS}s")
 
 
@@ -84,13 +92,9 @@ async def run_continuous_grpc_measurement():
     # on failure it prints an error line instead of the real CSV header, and that error line
     # would otherwise get uploaded as if it were valid data (breaking the ingest-side parser).
     #
-    # Modes: 'status' alone gives id/state/etc, but its pop_ping_drop_rate/pop_ping_latency_ms/
-    # downlink_throughput_bps/uplink_throughput_bps always read back as 0 on current dish
-    # firmware (protobuf zero-default for fields the live status RPC no longer populates).
-    # 'ping_drop'/'ping_latency'/'usage' pull the real per-second values from the dish's
-    # history ring buffer instead; the ingest-side parser (leoscope_dashboard repo) derives
-    # pop_ping_drop_rate/pop_ping_latency_ms/downlink_throughput_bps/uplink_throughput_bps
-    # from those fields.
+    # Modes: 'status' alone gives the live id/state/throughput/latency snapshot; 'ping_drop'/
+    # 'ping_latency'/'usage' additionally pull decile/mean stats from the dish's history ring
+    # buffer, which 'status' alone doesn't report.
     while True:
         header_process = await asyncio.create_subprocess_exec(
             'python3', 'starlink-grpc-tools/dish_grpc_text.py',
@@ -196,7 +200,7 @@ async def run_starlink_speedtest():
     Run the Starlink embedded speed test via grpcurl against the dish gRPC API.
     Polls until the test finishes, then saves and uploads the JSON result.
     """
-    ep = STARLINK_GRPC_EP
+    ep = STARLINK_SPEEDTEST_EP
     method = STARLINK_GRPC_METHOD
 
     # Kick off the speed test
