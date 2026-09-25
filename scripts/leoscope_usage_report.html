@@ -1,0 +1,408 @@
+<title>Who Runs LEOScope</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#f2f5f4; --surface:#ffffff; --surface-2:#e9f0ef;
+    --ink:#101a1d; --ink-2:#445254; --muted:#71807f; --hairline:#d7e0df;
+    --accent:#146b73; --accent-rgb:20,107,115; --accent-2:#9c3b58; --accent-2-rgb:156,59,88;
+    --good:#0ca30c;
+    --cat-ping:#2a78d6; --cat-http:#eb6834; --cat-test:#1baf7a; --cat-iperf:#c98500;
+    --cat-mtr:#c85e8b; --cat-grpc:#008300; --cat-dns:#4a3aa7; --cat-speed:#e34948;
+    --cat-unclass:#9aa3a2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0b1213; --surface:#121a1c; --surface-2:#172123;
+      --ink:#eef4f3; --ink-2:#c3cdce; --muted:#84918f; --hairline:#223031;
+      --accent:#4fb6bd; --accent-rgb:79,182,189; --accent-2:#d68aa0; --accent-2-rgb:214,138,160;
+      --good:#0ca30c;
+      --cat-ping:#3987e5; --cat-http:#d95926; --cat-test:#199e70; --cat-iperf:#c98500;
+      --cat-mtr:#d55181; --cat-grpc:#1fa11f; --cat-dns:#9085e9; --cat-speed:#e66767;
+      --cat-unclass:#6d7776;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1213; --surface:#121a1c; --surface-2:#172123;
+    --ink:#eef4f3; --ink-2:#c3cdce; --muted:#84918f; --hairline:#223031;
+    --accent:#4fb6bd; --accent-rgb:79,182,189; --accent-2:#d68aa0; --accent-2-rgb:214,138,160;
+    --good:#0ca30c;
+    --cat-ping:#3987e5; --cat-http:#d95926; --cat-test:#199e70; --cat-iperf:#c98500;
+    --cat-mtr:#d55181; --cat-grpc:#1fa11f; --cat-dns:#9085e9; --cat-speed:#e66767;
+    --cat-unclass:#6d7776;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'Source Serif 4', Georgia, 'Times New Roman', serif;
+    font-size:16px; line-height:1.55;
+    padding-inline:20px; padding-block:48px 80px;
+  }
+  .page{max-width:880px; margin-inline:auto;}
+  h1,h2,h3{font-family:'Archivo Black','Arial Black',sans-serif; font-weight:400; text-wrap:balance; letter-spacing:0.01em;}
+  .mono{font-family:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;}
+  a{color:var(--accent);}
+
+  /* ---------- masthead ---------- */
+  .masthead{border-bottom:3px solid var(--ink); padding-bottom:28px; margin-bottom:36px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600;
+    letter-spacing:0.16em; text-transform:uppercase; color:var(--accent);
+    display:flex; align-items:center; gap:10px; margin-bottom:14px;
+  }
+  .eyebrow::before{content:""; width:8px; height:8px; background:var(--accent); display:inline-block;}
+  .masthead h1{font-size:clamp(32px,5.5vw,54px); line-height:1.04; margin:0 0 14px;}
+  .masthead .dek{
+    font-size:19px; color:var(--ink-2); max-width:62ch; margin:0 0 22px; font-style:italic;
+  }
+  .meta-row{
+    display:flex; flex-wrap:wrap; gap:10px 28px;
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--muted);
+  }
+  .meta-row b{color:var(--ink-2); font-weight:600;}
+
+  /* ---------- stat strip ---------- */
+  .stats{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(126px,1fr));
+    gap:1px; background:var(--hairline);
+    border:1px solid var(--hairline); margin-bottom:56px;
+  }
+  .stat{background:var(--surface); padding:18px 16px;}
+  .stat .n{
+    font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:clamp(22px,3.4vw,30px);
+    color:var(--ink); font-variant-numeric:tabular-nums; line-height:1;
+  }
+  .stat .n small{font-size:15px; color:var(--accent); font-weight:500;}
+  .stat .lbl{font-size:12.5px; color:var(--ink-2); margin-top:8px; line-height:1.3;}
+
+  /* ---------- sections ---------- */
+  section{margin-bottom:64px;}
+  .sec-head{display:flex; align-items:baseline; gap:14px; margin-bottom:6px;}
+  .sec-num{font-family:'IBM Plex Mono',monospace; color:var(--accent); font-size:14px; font-weight:600;}
+  .sec-head h2{font-size:clamp(22px,3.4vw,30px); margin:0;}
+  .sec-intro{color:var(--ink-2); max-width:66ch; margin:14px 0 28px;}
+  .sec-rule{height:1px; background:var(--hairline); margin:0 0 26px;}
+
+  /* ---------- bar charts (CSS, scaled by inline %) ---------- */
+  .chart{display:flex; flex-direction:column; gap:9px; margin-bottom:6px;}
+  .bar-row{display:grid; grid-template-columns:132px 1fr auto; align-items:center; gap:12px;}
+  .bar-row .lbl{font-size:13.5px; color:var(--ink-2); text-align:right; overflow-wrap:break-word;}
+  .bar-track{position:relative; height:16px; background:var(--surface-2); border-radius:2px; overflow:visible;}
+  .bar-fill{position:absolute; inset-block:0; left:0; border-radius:2px 4px 4px 2px; background:var(--accent);}
+  .bar-row .val{font-family:'IBM Plex Mono',monospace; font-size:13px; font-variant-numeric:tabular-nums; color:var(--ink); min-width:2.6ch;}
+  @media (max-width:520px){
+    .bar-row{grid-template-columns:92px 1fr auto;}
+    .bar-row .lbl{font-size:12px;}
+  }
+
+  /* bullet-style category chart */
+  .cat-row{display:grid; grid-template-columns:168px 1fr; align-items:center; gap:14px; margin-bottom:14px;}
+  .cat-row .lbl{font-size:13.5px; text-align:right;}
+  .cat-swatch{display:inline-block; width:9px; height:9px; margin-right:7px; border-radius:1px; vertical-align:1px;}
+  .cat-track{position:relative; height:20px; background:var(--surface-2); border-radius:2px;}
+  .cat-fill{position:absolute; inset-block:0; left:0; border-radius:2px 3px 3px 2px;}
+  .cat-tick{position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--ink);}
+  .cat-tick::after{
+    content:attr(data-v); position:absolute; top:-17px; left:50%; transform:translateX(-50%);
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-2); white-space:nowrap;
+  }
+  .cat-nums{
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--muted); margin-top:5px;
+    grid-column:2; font-variant-numeric:tabular-nums;
+  }
+  .cat-legend{
+    display:flex; flex-wrap:wrap; gap:8px 20px; margin:18px 0 30px;
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-2);
+  }
+  .cat-legend span{display:flex; align-items:center; gap:6px;}
+  .cat-legend i{width:9px; height:9px; border-radius:1px; display:inline-block;}
+
+  .callout{
+    background:var(--surface-2); border-left:3px solid var(--accent-2);
+    padding:18px 20px; margin:24px 0; font-size:14.5px; color:var(--ink-2);
+  }
+  .callout b{color:var(--ink); font-weight:600;}
+  .callout .big{
+    font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:26px; color:var(--accent-2);
+    display:block; margin-bottom:6px; font-variant-numeric:tabular-nums;
+  }
+
+  .note-list{margin:0; padding:0; color:var(--ink-2); font-size:14.5px;}
+  .note-list li{margin-bottom:6px;}
+
+  /* ---------- pipeline cards ---------- */
+  .card{
+    border:1px solid var(--hairline); background:var(--surface); margin-bottom:26px;
+  }
+  .card-head{
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px;
+    padding:18px 20px; border-bottom:1px solid var(--hairline);
+  }
+  .card-head h3{font-size:18px; margin:0; flex:1 1 auto; min-width:180px;}
+  .card-image{
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--accent);
+    background:rgba(var(--accent-rgb),0.09); padding:4px 9px; border-radius:3px;
+    word-break:break-all;
+  }
+  .pill{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.04em;
+    text-transform:uppercase; padding:3px 8px; border-radius:20px;
+  }
+  .pill.verified{background:rgba(12,163,12,0.14); color:var(--good);}
+  .pill.unresolved{background:rgba(var(--accent-2-rgb),0.14); color:var(--accent-2);}
+  .card-body{padding:20px; display:grid; grid-template-columns:1.1fr 1fr; gap:24px;}
+  @media (max-width:640px){.card-body{grid-template-columns:1fr;}}
+  .card-body p{margin:0 0 12px; font-size:14.5px; color:var(--ink-2);}
+  .card-body p:last-child{margin-bottom:0;}
+  .kv{display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:14px; font-family:'IBM Plex Mono',monospace; font-size:12px;}
+  .kv div span{display:block;}
+  .kv .k{color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; font-size:10.5px;}
+  .kv .v{color:var(--ink); font-size:14px; font-weight:600; font-variant-numeric:tabular-nums;}
+
+  .term{
+    background:#0d1414; border-radius:4px; padding:14px 16px; overflow-x:auto;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.65; color:#c9d6d1;
+  }
+  .term .c1{color:#5fb3ea;} .term .c2{color:#e8a95e;} .term .c3{color:#7fd19a;} .term .c4{color:#7f8f8c;}
+  .term .ln{white-space:pre;}
+
+  footer{
+    border-top:2px solid var(--ink); margin-top:60px; padding-top:24px;
+    font-size:12.5px; color:var(--muted);
+  }
+  footer .mono{display:block; margin-top:10px; line-height:1.9;}
+  footer code{background:var(--surface-2); padding:1px 5px; border-radius:3px; color:var(--ink-2);}
+</style>
+
+<div class="page">
+
+  <div class="masthead">
+    <div class="eyebrow">LEOScope Testbed &mdash; Internal Field Report</div>
+    <h1>Who Runs LEOScope, And For What</h1>
+    <!-- <p class="dek">A first pass through the orchestrator's Mongo database &mdash; who has access, where they're based, and what their scheduled jobs actually measure &mdash; with the two biggest measurement pipelines confirmed by pulling their docker images and reading the source.</p> -->
+    <div class="meta-row">
+      <span><b>Prepared by</b> Saeed Fadaei</span>
+      <span><b>Snapshot</b> 2026&#8209;09&#8209;15</span>
+      <span><b>Source</b> MongoDB <code class="mono">leotest</code> &middot; <code class="mono">orchestrator&#8209;datastore&#8209;1</code></span>
+      <span><b>Scope</b> full run history to date</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n">72</div><div class="lbl">active researcher accounts</div></div>
+    <div class="stat"><div class="n">38</div><div class="lbl">institutions</div></div>
+    <div class="stat"><div class="n">15</div><div class="lbl">countries</div></div>
+    <div class="stat"><div class="n">16,411</div><div class="lbl">runs logged, all&#8209;time</div></div>
+    <div class="stat"><div class="n">2,101</div><div class="lbl">experiment names ever scheduled</div></div>
+    <div class="stat"><div class="n">3</div><div class="lbl">measurement pipelines verified by reading source code</div></div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">&sect;01</span><h2>Who's using it</h2></div>
+    <div class="sec-rule"></div>
+    <p class="sec-intro">72 accounts have completed signup and hold an access token today (3 internal/admin/test accounts excluded). Institution and country aren't structured fields &mdash; both are inferred from the free&#8209;text &ldquo;team&rdquo; string each researcher typed at signup, matched by keyword and cross&#8209;checked against their email domain.</p>
+
+    <h3 style="font-size:15px;font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--ink-2);margin:0 0 16px;text-transform:uppercase;letter-spacing:.04em;">By country</h3>
+    <div class="chart" id="chart-country"></div>
+
+    <h3 style="font-size:15px;font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--ink-2);margin:34px 0 16px;text-transform:uppercase;letter-spacing:.04em;">By institution &mdash; top 12 of 38</h3>
+    <div class="chart" id="chart-inst"></div>
+    <p style="font-size:13px;color:var(--muted);margin-top:14px;">Plus 26 more institutions with a single active researcher each, including Telefonica, Vodafone Group, NORDUnet, Internet Society, MIT, Carnegie Mellon, Georgia Tech, UC San Diego, University of Waterloo, University of British Columbia, Northeastern University and the National University of Singapore.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">&sect;02</span><h2>What they're running</h2></div>
+    <div class="sec-rule"></div>
+    <p class="sec-intro">The <code class="mono">jobs</code> collection auto&#8209;deletes a document once that job's end date passes (a TTL index on <code class="mono">expire_at</code>) &mdash; so it only ever holds currently&#8209;live jobs, never history. <code class="mono">runs</code> has no such TTL and keeps every run ever executed, but doesn't store the docker image. So every run below is first classified by keyword&#8209;matching its <code class="mono">jobid</code> (researchers name jobs descriptively, e.g. <code class="mono">ping&#8209;wroughton</code>) &mdash; full coverage, but a guess. The two biggest hits are then confirmed for real in &sect;03 by pulling the actual image.</p>
+
+    <div class="callout">
+      <span class="big">12,081 runs &middot; 73.6%</span>
+      <b>Don't match any keyword rule.</b> Most of this is a handful of very active, idiosyncratically&#8209;named pipelines &mdash; not noise. See &sect;03 and &sect;04: two of the largest are now identified, a large Osnabr&uuml;ck cluster and a one&#8209;off &ldquo;solar storm&rdquo; campaign are not yet.
+    </div>
+
+    <h3 style="font-size:15px;font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--ink-2);margin:30px 0 6px;text-transform:uppercase;letter-spacing:.04em;">The 26.4% that <i style="font-style:normal;color:var(--ink);">did</i> match a keyword</h3>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 20px;">Bar = runs all&#8209;time. Tick + label = runs in the past 6 months.</p>
+    <div id="chart-cat"></div>
+    <div class="cat-legend" id="cat-legend"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">&sect;03</span><h2>Verified pipelines</h2></div>
+    <div class="sec-rule"></div>
+    <p class="sec-intro">No Docker daemon was used or needed. Each image below was pulled straight from its registry's HTTP API &mdash; an auth token from <code class="mono">auth.docker.io</code> / <code class="mono">ghcr.io</code>, the manifest and layer blobs from there &mdash; and the layers were untarred to read the entrypoint and source directly.</p>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>Ping probe</h3>
+        <span class="pill unresolved">Template, not live</span>
+        <span class="card-image">leoscopetestbed/ping:v1</span>
+      </div>
+      <div class="card-body">
+        <div>
+          <p>The testbed's one predefined onboarding template. A small Python wrapper around the system <code class="mono">ping</code> binary &mdash; target, count, interval, deadline and packet size all come from the job's YAML params &mdash; parsing packet loss and RTT min/avg/max/mdev into JSON + CSV.</p>
+          <p>Not represented in any currently&#8209;live job at snapshot time; it exists as a one&#8209;click starting point for new researchers rather than a running pipeline today.</p>
+        </div>
+        <div class="term">
+<div class="ln"><span class="c4"># entrypoint</span></div>
+<div class="ln"><span class="c1">python3</span> /app/runner.py</div>
+<div class="ln"></div>
+<div class="ln"><span class="c4"># resolved shell command</span></div>
+<div class="ln"><span class="c1">ping</span> <span class="c2">-c</span> 60 <span class="c2">-i</span> 1 <span class="c2">-w</span> 60 1.1.1.1</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>TUM combined suite</h3>
+        <span class="pill verified">Confirmed &middot; live</span>
+        <span class="card-image">hendrikcech/leotest</span>
+      </div>
+      <div class="card-body">
+        <div>
+          <p>The single biggest driver of current activity. A config&#8209;driven Python harness (<code class="mono">python3 -m leotest</code>) that, per run, randomly executes a mix of three runners against a Technical University of Munich server:</p>
+          <p><b>ping</b> &mdash; ICMP latency &middot; <b>stltrace</b> &mdash; a custom client/server one&#8209;way&#8209;delay prober (uplink &amp; downlink) &middot; <b>ccmeas</b> &mdash; throughput/congestion&#8209;control test driving <code class="mono">iperf3</code> + <code class="mono">irtt</code> through a set of testcases over a WireGuard tunnel.</p>
+          <div class="kv">
+            <div><span class="k">confirmed jobs</span><span class="v">3</span></div>
+            <div><span class="k">confirmed runs</span><span class="v">2,143</span></div>
+            <div><span class="k">tum&#8209;named family</span><span class="v">2,790 runs / 33 job names</span></div>
+            <div><span class="k">past 6 months</span><span class="v">2,583 of 2,790 (93%)</span></div>
+          </div>
+        </div>
+        <div class="term">
+<div class="ln"><span class="c4"># entrypoint</span></div>
+<div class="ln"><span class="c1">python3</span> -m leotest --test-config /artifacts/experiment-config.yaml</div>
+<div class="ln"></div>
+<div class="ln"><span class="c4"># leotest/__main__.py</span></div>
+<div class="ln"><span class="c1">def</span> run_test(testname, config):</div>
+<div class="ln">    runner = config[<span class="c3">'tests'</span>][testname][<span class="c3">'runner'</span>]</div>
+<div class="ln">    module = importlib.import_module(</div>
+<div class="ln">        <span class="c3">f'leotest.runners.{runner}'</span>)</div>
+<div class="ln"></div>
+<div class="ln"><span class="c4"># leotest/runners/</span></div>
+<div class="ln">ping.py &nbsp;&nbsp;&nbsp;stltrace.py &nbsp;&nbsp;&nbsp;ccmeas.py</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>RTC speed client</h3>
+        <span class="pill verified">Confirmed &middot; live</span>
+        <span class="card-image">ghcr.io/byalharbi/nx8f3a2c:latest</span>
+      </div>
+      <div class="card-body">
+        <div>
+          <p>University of Colorado Boulder's real&#8209;time&#8209;communication throughput study. A compiled <code class="mono">rtc_speed_test_client</code> fires once an hour for ~3 minutes, sending WebRTC&#8209;style traffic from each Starlink/LEO node to the nearest of four GCP regions &mdash; routed by the node's own geolocation, reusing CAIDA Ark monitor coordinates for a wider comparison set.</p>
+          <div class="kv">
+            <div><span class="k">confirmed jobs</span><span class="v">4</span></div>
+            <div><span class="k">confirmed runs</span><span class="v">579</span></div>
+            <div><span class="k">rtc&#8209;named family</span><span class="v">1,415 runs / 13 job names</span></div>
+            <div><span class="k">past 6 months</span><span class="v">1,415 of 1,415 (100%)</span></div>
+          </div>
+        </div>
+        <div class="term">
+<div class="ln"><span class="c4"># entrypoint: client_loop.sh</span></div>
+<div class="ln"><span class="c1">timeout</span> -k 10 <span class="c3">"$RUN_TIMEOUT_S"</span> \</div>
+<div class="ln">  rtc_speed_test_client \</div>
+<div class="ln">  -t <span class="c3">"$SERVER_IP"</span> -s <span class="c3">"$DURATION_S"</span> -g sender</div>
+<div class="ln"></div>
+<div class="ln"><span class="c4"># region routing (env defaults)</span></div>
+<div class="ln">us-west1 &middot; us-east4 &middot; europe-west3 &middot; asia-southeast1</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="sec-num">&sect;04</span><h2>Open threads</h2></div>
+    <div class="sec-rule"></div>
+    <p class="sec-intro">Of the 2,101 distinct job names ever scheduled, only <b style="color:var(--ink);">7</b> still had a live, resolvable docker image at snapshot time &mdash; everything else had already aged out of <code class="mono">jobs</code> by the time this audit ran. These clusters are large enough to matter but still unidentified:</p>
+    <ul class="note-list">
+      <li><b style="color:var(--ink);">Osnabr&uuml;ck cluster</b> &mdash; 2,875 runs across dozens of job names (<code class="mono">measurement_osna</code>: 1,039, all historical &middot; <code class="mono">osna_series</code>: 852, all in the past 6 months &middot; <code class="mono">leo&#8209;measurment&#8209;osnabrueck</code>: 169 &middot; plus a long tail). No surviving image for any of them.</li>
+      <li><b style="color:var(--ink);">A one&#8209;off &ldquo;solar storm&rdquo; campaign</b> &mdash; 56 single&#8209;run jobs named <code class="mono">solar-storm-october-{ping,iperf}-osna-NN</code> (280 runs) plus a <code class="mono">non-storm-*</code> control set (30 runs), all historical. Reads like a coordinated ping/iperf correlation study against geomagnetic activity, run from Osnabr&uuml;ck.</li>
+      <li><b style="color:var(--ink);">56 <code class="mono">final&#8209;step&#8209;test&#8209;N</code> jobs</b> (57 runs, all historical) &mdash; looks like coursework or a capstone project; low priority.</li>
+    </ul>
+    <p style="font-size:14.5px;color:var(--ink-2);margin-top:20px;"><b style="color:var(--ink);">Suggested next steps:</b> ask the Osnabr&uuml;ck group directly; going forward, stamp the resolved docker image onto each <code class="mono">runs</code> document at execution time so history survives the jobs TTL; for older runs specifically, each still has a <code class="mono">blob_url</code> pointing at its archived Azure Blob artifact zip (which contains the original <code class="mono">experiment-config.yaml</code>) &mdash; recoverable with a scoped, short&#8209;lived read&#8209;only SAS token, not attempted here.</p>
+  </section>
+
+  <footer>
+    Methodology: institution/country parsed from each user's free&#8209;text <code>team</code> field (keyword match, email&#8209;domain TLD fallback, manually reviewed). Measurement category guessed from keywords in each run's <code>jobid</code>; the &sect;03 pipelines are the only figures confirmed by reading actual source, everything else is best&#8209;effort. Figures exclude 3 internal/admin/test accounts and reflect the <code>leotest</code> Mongo database as of the snapshot date above.
+    <span class="mono">
+      scripts/analyze_testbed_usage.js &middot; scripts/list_docker_images.js &middot; scripts/classify_runs_by_jobid.js &middot; scripts/extract_university_country.py
+    </span>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var countries = [
+    ["United States",20],["United Kingdom",14],["Germany",8],["China",6],["India",5],
+    ["Netherlands",4],["Canada",4],["Brazil",2],["Norway",2],["Italy",2],
+    ["Spain",1],["Denmark",1],["South Korea",1],["Mauritius",1],["Singapore",1]
+  ];
+  var institutions = [
+    ["University of Surrey",10],["Microsoft Research / IIIT Delhi",5],["Virginia Tech",5],
+    ["TU Delft",4],["University of Osnabrück",4],["UCLA",4],
+    ["Tsinghua University",3],["Technical University of Munich",3],
+    ["Queen's University Belfast",2],["UCLA Scan Lab",2],
+    ["Beijing Univ. of Posts & Telecom",2],["Politecnico di Milano",2]
+  ];
+  var categories = [
+    {label:"Latency (ping)", total:1645, recent:66, color:"var(--cat-ping)"},
+    {label:"HTTP transfer (curl/http)", total:1004, recent:51, color:"var(--cat-http)"},
+    {label:"Test / sample job", total:880, recent:602, color:"var(--cat-test)"},
+    {label:"Throughput (iperf)", total:426, recent:16, color:"var(--cat-iperf)"},
+    {label:"Traceroute (mtr)", total:218, recent:0, color:"var(--cat-mtr)"},
+    {label:"gRPC / Starlink telemetry", total:81, recent:43, color:"var(--cat-grpc)"},
+    {label:"DNS lookup", total:64, recent:64, color:"var(--cat-dns)"},
+    {label:"Speed test (Ookla)", total:12, recent:0, color:"var(--cat-speed)"}
+  ];
+
+  function fmt(n){ return n.toLocaleString('en-US'); }
+
+  function renderBars(containerId, rows, color){
+    var max = Math.max.apply(null, rows.map(function(r){return r[1];}));
+    var el = document.getElementById(containerId);
+    var html = "";
+    rows.forEach(function(r){
+      var pct = Math.max((r[1]/max*100), 2.2);
+      html += '<div class="bar-row">' +
+        '<div class="lbl">'+r[0]+'</div>' +
+        '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>' +
+        '<div class="val">'+fmt(r[1])+'</div>' +
+      '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  renderBars('chart-country', countries, 'var(--accent)');
+  renderBars('chart-inst', institutions, 'var(--accent)');
+
+  (function(){
+    var max = Math.max.apply(null, categories.map(function(c){return c.total;}));
+    var el = document.getElementById('chart-cat');
+    var html = "";
+    categories.forEach(function(c){
+      var totalPct = Math.max((c.total/max*100), 1.2);
+      var tickPct = c.total ? (c.recent/max*100) : 0;
+      var pctRecent = c.total ? Math.round(c.recent/c.total*100) : 0;
+      html += '<div class="cat-row">' +
+        '<div class="lbl"><span class="cat-swatch" style="background:'+c.color+';"></span>'+c.label+'</div>' +
+        '<div>' +
+          '<div class="cat-track">' +
+            '<div class="cat-fill" style="width:'+totalPct+'%;background:'+c.color+';opacity:0.85;"></div>' +
+            (c.recent>0 ? '<div class="cat-tick" style="left:'+tickPct+'%;" data-v="'+fmt(c.recent)+' recent"></div>' : '') +
+          '</div>' +
+          '<div class="cat-nums">'+fmt(c.total)+' total&nbsp;&nbsp;·&nbsp;&nbsp;'+fmt(c.recent)+' in past 6mo ('+pctRecent+'%)</div>' +
+        '</div>' +
+      '</div>';
+    });
+    el.innerHTML = html;
+
+    var legend = document.getElementById('cat-legend');
+    legend.innerHTML = '<span><i style="background:var(--ink);width:2px;height:10px;border-radius:0;"></i>tick = runs in past 6 months</span>';
+  })();
+})();
+</script>

@@ -1,0 +1,145 @@
+Parsed 75 user records from scripts/users_list.txt
+
+====================================================================================================
+Per-user table
+====================================================================================================
+Brazil               Federal Fluminense                                      Daniel Cota                  danielotavio@id.uff.br
+Brazil               Federal University of São João del-Rey (UFSJ)           Cláudio  Batista             claudiog@ufsj.edu.br
+Canada               Simon Fraser University                                 Sami Ma                      masamim@sfu.ca
+Canada               University of British Columbia                          Satvik Vemuganti             vssatvik@cs.ubc.ca
+Canada               University of Victoria                                  Jinwei Zhao                  clarkzjw@uvic.ca
+Canada               University of Waterloo                                  Taha Cheema                  t2cheema@uwaterloo.ca
+China                Beijing University of Posts and Telecommunications      Jiachen Li                   lijiachen666@bupt.edu.cn
+China                Beijing University of Posts and Telecommunications      Bijia You                    ubjgreat@gmail.com
+China                Shanghai Institute of Microsystem and Information Technology Xinya Wu                     wuxin_ya@163.com
+China                Tsinghua University                                     Van Bo                       deemo385@gmail.com
+China                Tsinghua University                                     Yekai Dong                   dyk22@mails.tsinghua.edu.cn
+China                Tsinghua University                                     Zhifeng Han                  zhifenghan.mail@gmail.com
+Denmark              NORDUnet                                                Erik-Jan Bos                 bos@nordu.net
+Germany              Hasso Plattner Institut                                 Robert Richter               robert.richter@student.hpi.de
+Germany              Technical University of Munich                          Alexander Kobler             kobler-uni@gmx.de
+Germany              Technical University of Munich                          Rohan Bose                   leoscope.cm.tum@gmail.com
+Germany              Technical University of Munich                          Yannis Matezki               yannis.matezki@tum.de
+Germany              University of Osnabrück                                 Bjarne Blumenthal            bjarneblu@gmail.com
+Germany              University of Osnabrück                                 Eric Lanfer                  elanfer@uni-osnabrueck.de
+Germany              University of Osnabrück                                 Tom Simon                    stom@uni-osnabrueck.de
+Germany              University of Osnabrück                                 Tom Simon                    stom@uos.de
+India                Microsoft Research / IIIT Delhi                         Aryan Taneja                 TEDX.IIITDELHI2@GMAIL.COM
+India                Microsoft Research / IIIT Delhi                         Aryan Taneja                 TEDX.IIITDELHI@GMAIL.COM
+India                Microsoft Research / IIIT Delhi                         Aryan Taneja                 admin4@leoscope.com
+India                Microsoft Research / IIIT Delhi                         Aryan Taneja                 tedx.iiitdelhi3@gmail.com
+India                Microsoft Research / IIIT Delhi                         Aryan Taneja                 tedx.iiitdelhi@gmail.com
+Italy                Politecnico di Milano                                   Marco Mezzavilla             marco.mezzavilla@polimi.it
+Italy                Politecnico di Milano                                   Nicola Gallucci              nicola.gallucci@mail.polimi.it
+Mauritius            Internet Society                                        Amreesh Phokeer              phokeer@isoc.org
+N/A - test account   Test account (internal)                                 test user                    leoscope_test@gmail.com
+Netherlands          TU Delft                                                Sander Vermeulen             S.R.Vermeulen@student.tudelft.nl
+Netherlands          TU Delft                                                Muhammet Bilgic              mebilgic@tudelft.nl
+Netherlands          TU Delft                                                Nitinder Mohan               nitindermohan@gmail.com
+Netherlands          TU Delft                                                Zuji Zhou                    zujizhou@tudelft.nl
+Norway               Simula Metropolitan                                     Foivos Michelinakis          foivos@simula.no
+Norway               Simula Metropolitan Centre for Digital Engineering      Tarik Cicic                  tarik@simula.no
+Singapore            National University of Singapore                        Zhiyu Yuan                   yuanzhiyu@u.nus.edu
+South Korea          Korea University, School of Electrical Engineering, The SHIN Lab Hyunho Hwang                 hhhwang0503@korea.ac.kr
+Spain                Telefonica                                              Andra Lutu                   andra.lutu@telefonica.com
+United Kingdom       LEOScope Admin (internal)                               LEOScope Admin               admin@leoscope.surrey.ac.uk
+United Kingdom       LEOScope Web Designer (internal)                        James Cocker                 james.s.earth@gmail.com
+United Kingdom       Queen's University Belfast                              Charles Collins              ccollins31@qub.ac.uk
+United Kingdom       Queen's University Belfast                              Dionysi Ntreou               dntreou01@qub.ac.uk
+United Kingdom       Surrey Centre for Cyber Security                        Navid Abapour                n.abapour@surrey.ac.uk
+United Kingdom       University of Surrey                                    Abubakar Kutiriko Abdullahi  abdullahikutiriko@gmail.com
+United Kingdom       University of Surrey                                    aravindh raman               aravindh.raman@gmail.com
+United Kingdom       University of Surrey                                    Mohamed Kassem               m.kassem@surrey.ac.uk
+United Kingdom       University of Surrey                                    Nishanth Sastry              n.sastry@surrey.ac.uk
+United Kingdom       University of Surrey                                    Temi Lash                    o.lash@surrey.ac.uk
+United Kingdom       University of Surrey                                    Prince Bhardwaj              p.pawankumarsharma@surrey.ac.uk
+United Kingdom       University of Surrey                                    Saeed Fadaei                 s.fadaei@surrey.ac.uk
+United Kingdom       University of Surrey                                    Aravindh Raman               ul338af@surrey.ac.uk
+United Kingdom       University of Surrey                                    vinod                        v.khandkar@surrey.ac.uk
+United Kingdom       University of Surrey                                    Roger Zhang                  yz02055@surrey.ac.uk
+United Kingdom       Vodafone Group                                          Sean Hodgson                 sean.hodgson@vodafone.com
+United States        Carnegie Mellon University                              Isabel Suizo                 isabel@cmu.edu
+United States        Georgia Institute of Technology                         Meeton Kirkuki               meetonk@gmail.com
+United States        MIT                                                     Om Chabra                    omchabra@mit.edu
+United States        Northeastern University                                 Sizhe Wang                   wang.sizh@northeastern.edu
+United States        The state University of Newyork, University at Buffalo  Jingtao Wang                 jingtaow@buffalo.edu
+United States        UC San Diego                                            Shivani Hariprasad           shariprasad@ucsd.edu
+United States        UCLA                                                    Dylan Truong                 dylantruong5@g.ucla.edu
+United States        UCLA                                                    Khiet Huynh                  khietlhuynh@g.ucla.edu
+United States        UCLA                                                    Manda Tran                   mandat@ucla.edu
+United States        UCLA                                                    Sirapop Theeranantachai      stheera@g.ucla.edu
+United States        UCLA Scan Lab                                           Dravya Jain                  dravyajain@g.ucla.edu
+United States        UCLA Scan Lab                                           Dravya Jain                  dravyajain@gmail.com
+United States        University of California, Irvine                        Eunju Kang                   eunjuk2@uci.edu
+United States        University of Colorado Boulder                          Bashayer Alharbi             baal7013@colorado.edu
+United States        University of Illinois Urbana-Champaign                 Deepak Vasisht               deepakv@illinois.edu
+United States        Virginia Tech                                           Bruce  Barbour               bbarbour@vt.edu
+United States        Virginia Tech                                           Jack Downs                   downs106@vt.edu
+United States        Virginia Tech                                           Josh Smith                   sjosh03@vt.edu
+United States        Virginia Tech                                           Samantha Kenyon              spkenyon@vt.edu
+United States        Virginia Tech                                           Suryansh Aryan               suryaryan@vt.edu
+
+====================================================================================================
+Users by country
+====================================================================================================
+United States             20
+United Kingdom            16
+Germany                   8
+China                     6
+India                     5
+Netherlands               4
+Canada                    4
+Brazil                    2
+Norway                    2
+Italy                     2
+Spain                     1
+Denmark                   1
+South Korea               1
+N/A - test account        1
+Mauritius                 1
+Singapore                 1
+
+====================================================================================================
+Users by university / institution
+====================================================================================================
+University of Surrey                                         10
+Microsoft Research / IIIT Delhi                              5
+Virginia Tech                                                5
+TU Delft                                                     4
+University of Osnabrück                                      4
+UCLA                                                         4
+Tsinghua University                                          3
+Technical University of Munich                               3
+Queen's University Belfast                                   2
+UCLA Scan Lab                                                2
+Beijing University of Posts and Telecommunications           2
+Politecnico di Milano                                        2
+LEOScope Admin (internal)                                    1
+Telefonica                                                   1
+University of Colorado Boulder                               1
+NORDUnet                                                     1
+University of Victoria                                       1
+Federal University of São João del-Rey (UFSJ)                1
+Federal Fluminense                                           1
+University of Illinois Urbana-Champaign                      1
+University of California, Irvine                             1
+Simula Metropolitan                                          1
+Korea University, School of Electrical Engineering, The SHIN Lab 1
+Carnegie Mellon University                                   1
+LEOScope Web Designer (internal)                             1
+The state University of Newyork, University at Buffalo       1
+Test account (internal)                                      1
+Simon Fraser University                                      1
+Georgia Institute of Technology                              1
+Surrey Centre for Cyber Security                             1
+MIT                                                          1
+Internet Society                                             1
+Hasso Plattner Institut                                      1
+Vodafone Group                                               1
+UC San Diego                                                 1
+University of Waterloo                                       1
+Simula Metropolitan Centre for Digital Engineering           1
+University of British Columbia                               1
+Northeastern University                                      1
+Shanghai Institute of Microsystem and Information Technology 1
+National University of Singapore                             1

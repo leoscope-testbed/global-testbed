@@ -1,0 +1,451 @@
+Total users: 75
+{
+  id: 'S.R.Vermeulen@student.tudelft.nl',
+  name: 'Sander Vermeulen',
+  team: 'Delft University of Technology - Delft',
+  role: 1
+}
+{
+  id: 'TEDX.IIITDELHI2@GMAIL.COM',
+  name: 'Aryan Taneja',
+  team: 'Microsoft Research - India',
+  role: 1
+}
+{
+  id: 'TEDX.IIITDELHI@GMAIL.COM',
+  name: 'Aryan Taneja',
+  team: 'Microsoft Research - India',
+  role: 1
+}
+{
+  id: 'abdullahikutiriko@gmail.com',
+  name: 'Abubakar Kutiriko Abdullahi',
+  team: 'University of Surrey - London',
+  role: 1
+}
+{
+  id: 'admin4@leoscope.com',
+  name: 'Aryan Taneja',
+  team: 'Microsoft Research India - BLR',
+  role: 1
+}
+{
+  id: 'admin@leoscope.surrey.ac.uk',
+  name: 'LEOScope Admin',
+  role: 1,
+  team: 'LeoScope MSR-India'
+}
+{
+  id: 'andra.lutu@telefonica.com',
+  name: 'Andra Lutu',
+  team: 'Telefonica - Madrid, Spain',
+  role: 1
+}
+{
+  id: 'aravindh.raman@gmail.com',
+  name: 'aravindh raman',
+  team: 'University of Surrey - 51.5072, 0.1276',
+  role: 1
+}
+{
+  id: 'baal7013@colorado.edu',
+  name: 'Bashayer Alharbi',
+  team: 'University of Colorado Boulder - Boulder, CO, USA',
+  role: 1
+}
+{
+  id: 'bbarbour@vt.edu',
+  name: 'Bruce  Barbour',
+  team: 'Virginia Tech - Virginia Tech',
+  role: 1
+}
+{
+  id: 'bjarneblu@gmail.com',
+  name: 'Bjarne Blumenthal',
+  team: 'University of Osnabrück - Osnabrück, Germany',
+  role: 1
+}
+{
+  id: 'bos@nordu.net',
+  name: 'Erik-Jan Bos',
+  team: 'NORDUnet - Denmark',
+  role: 1
+}
+{
+  id: 'ccollins31@qub.ac.uk',
+  name: 'Charles Collins',
+  team: "Queen's University Belfast - Belfast",
+  role: 1
+}
+{
+  id: 'clarkzjw@uvic.ca',
+  name: 'Jinwei Zhao',
+  team: 'University of Victoria - Victoria, Canada',
+  role: 1
+}
+{
+  id: 'claudiog@ufsj.edu.br',
+  name: 'Cláudio  Batista',
+  team: 'Federal University of São João del-Rey (UFSJ) - Ouro Branco, Brazil',
+  role: 1
+}
+{
+  id: 'danielotavio@id.uff.br',
+  name: 'Daniel Cota',
+  team: 'Federal Fluminense - UFF - Brazil',
+  role: 1
+}
+{
+  id: 'deemo385@gmail.com',
+  name: 'Van Bo',
+  team: 'Tsinghua University - Beijing, China',
+  role: 1
+}
+{
+  id: 'deepakv@illinois.edu',
+  name: 'Deepak Vasisht',
+  team: 'University of Illinois Urbana-Champaign - Urbana-Champaign USA',
+  role: 1
+}
+{
+  id: 'dntreou01@qub.ac.uk',
+  name: 'Dionysi Ntreou',
+  team: 'queens university  - Belfast',
+  role: 1
+}
+{
+  id: 'downs106@vt.edu',
+  name: 'Jack Downs',
+  team: 'VirginiaTech - VirginiaTech, US',
+  role: 1
+}
+{
+  id: 'dravyajain@g.ucla.edu',
+  name: 'Dravya Jain',
+  team: 'UCLA Scan Lab  - Los Angeles, CA, 90024 ',
+  role: 1
+}
+{
+  id: 'dravyajain@gmail.com',
+  name: 'Dravya Jain',
+  team: 'UCLA Scan Lab  - Los Angeles, CA, 90024 ',
+  role: 1
+}
+{
+  id: 'dyk22@mails.tsinghua.edu.cn',
+  name: 'Yekai Dong',
+  team: 'Tsinghua University - China',
+  role: 1
+}
+{
+  id: 'dylantruong5@g.ucla.edu',
+  name: 'Dylan Truong',
+  team: 'University of California, Los Angeles - Los Angeles',
+  role: 1
+}
+{
+  id: 'elanfer@uni-osnabrueck.de',
+  name: 'Eric Lanfer',
+  team: 'Osnabrueck University - Osnabrueck',
+  role: 1
+}
+{
+  id: 'eunjuk2@uci.edu',
+  name: 'Eunju Kang',
+  team: 'University of California, Irvine - Irvine, CA, USA',
+  role: 1
+}
+{
+  id: 'foivos@simula.no',
+  name: 'Foivos Michelinakis',
+  team: 'Simula Metropolitan - Oslo, Norway',
+  role: 1
+}
+{
+  id: 'hhhwang0503@korea.ac.kr',
+  name: 'Hyunho Hwang',
+  team: 'Korea University, School of Electrical Engineering, The SHIN Lab - Seoul, Korea',
+  role: 1
+}
+{
+  id: 'isabel@cmu.edu',
+  name: 'Isabel Suizo',
+  team: 'Carnegie Mellon University - Pittsburgh',
+  role: 1
+}
+{
+  id: 'james.s.earth@gmail.com',
+  name: 'James Cocker',
+  team: 'LEOScope Web Designer - Dorset',
+  role: 1
+}
+{
+  id: 'jingtaow@buffalo.edu',
+  name: 'Jingtao Wang',
+  team: 'The state University of Newyork, University at Buffalo - Buffalo',
+  role: 1
+}
+{
+  id: 'khietlhuynh@g.ucla.edu',
+  name: 'Khiet Huynh',
+  team: 'University of California - California, LA',
+  role: 1
+}
+{
+  id: 'kobler-uni@gmx.de',
+  name: 'Alexander Kobler',
+  team: 'Technical University Munich - Munich',
+  role: 1
+}
+{
+  id: 'leoscope.cm.tum@gmail.com',
+  name: 'Rohan Bose',
+  team: 'Chair of Connected Mobility, Technical University of Munich - Munich',
+  role: 1
+}
+{
+  id: 'leoscope_test@gmail.com',
+  name: 'test user',
+  team: 'test - test',
+  role: 1
+}
+{
+  id: 'lijiachen666@bupt.edu.cn',
+  name: 'Jiachen Li',
+  team: 'Beijing University of Posts and Telecommunications - Beijing, China',
+  role: 1
+}
+{
+  id: 'm.kassem@surrey.ac.uk',
+  name: 'Mohamed Kassem',
+  team: 'University of Surrey - Guildford',
+  role: 1
+}
+{
+  id: 'mandat@ucla.edu',
+  name: 'Manda Tran',
+  team: 'UCLA - Los Angeles',
+  role: 1
+}
+{
+  id: 'marco.mezzavilla@polimi.it',
+  name: 'Marco Mezzavilla',
+  team: 'Politecnico di Milano - Italy',
+  role: 1
+}
+{
+  id: 'masamim@sfu.ca',
+  name: 'Sami Ma',
+  team: 'Simon Fraser University - Burnaby, British Columbia, Canada',
+  role: 1
+}
+{
+  id: 'mebilgic@tudelft.nl',
+  name: 'Muhammet Bilgic',
+  team: 'TU Delft - Delft',
+  role: 1
+}
+{
+  id: 'meetonk@gmail.com',
+  name: 'Meeton Kirkuki',
+  team: 'Georgia Institute of Technology (Advanced Networked System Research Lab) - Atlanta, GA',
+  role: 1
+}
+{
+  id: 'n.abapour@surrey.ac.uk',
+  name: 'Navid Abapour',
+  team: 'Surrey Centre for Cyber Security - Guildford, Surrey, England, GBR',
+  role: 1
+}
+{
+  id: 'n.sastry@surrey.ac.uk',
+  name: 'Nishanth Sastry',
+  team: 'University of Surrey - Guildford',
+  role: 1
+}
+{
+  id: 'nicola.gallucci@mail.polimi.it',
+  name: 'Nicola Gallucci',
+  team: 'Politecnico di Milano  - Milan',
+  role: 1
+}
+{
+  id: 'nitindermohan@gmail.com',
+  name: 'Nitinder Mohan',
+  team: 'TU Delft - Delft',
+  role: 1
+}
+{
+  id: 'o.lash@surrey.ac.uk',
+  name: 'Temi Lash',
+  team: 'university of surrey - surrey',
+  role: 1
+}
+{
+  id: 'omchabra@mit.edu',
+  name: 'Om Chabra',
+  team: 'MIT - USA',
+  role: 1
+}
+{
+  id: 'p.pawankumarsharma@surrey.ac.uk',
+  name: 'Prince Bhardwaj',
+  team: 'University of Surrey - UK',
+  role: 0
+}
+{
+  id: 'phokeer@isoc.org',
+  name: 'Amreesh Phokeer',
+  team: 'Internet Society - Mauritius',
+  role: 1
+}
+{
+  id: 'robert.richter@student.hpi.de',
+  name: 'Robert Richter',
+  team: 'Hasso Plattner Institut - Potsdam, Germany',
+  role: 1
+}
+{
+  id: 's.fadaei@surrey.ac.uk',
+  name: 'Saeed Fadaei',
+  team: 'University of Surrey - Guildford',
+  role: 0
+}
+{
+  id: 'sean.hodgson@vodafone.com',
+  name: 'Sean Hodgson',
+  team: 'Vodafone Group - United Kingdom',
+  role: 1
+}
+{
+  id: 'shariprasad@ucsd.edu',
+  name: 'Shivani Hariprasad',
+  team: 'UC San Diego - San Diego',
+  role: 1
+}
+{
+  id: 'sjosh03@vt.edu',
+  name: 'Josh Smith',
+  team: 'Virginia Tech AOE Department - Blacksburg, VA',
+  role: 1
+}
+{
+  id: 'spkenyon@vt.edu',
+  name: 'Samantha Kenyon',
+  team: 'Virginia Tech - Virginia Tech',
+  role: 1
+}
+{
+  id: 'stheera@g.ucla.edu',
+  name: 'Sirapop Theeranantachai',
+  team: 'Universtiy of California, Los Angeles - Los Angeles, USA',
+  role: 1
+}
+{
+  id: 'stom@uni-osnabrueck.de',
+  name: 'Tom Simon',
+  team: 'University of Osnabrück - Osnabrück',
+  role: 1
+}
+{
+  id: 'stom@uos.de',
+  name: 'Tom Simon',
+  team: 'University of Osnabrueck - Osnabruck, Germany',
+  role: 1
+}
+{
+  id: 'suryaryan@vt.edu',
+  name: 'Suryansh Aryan',
+  team: 'Virginia Tech - Blacksburg',
+  role: 1
+}
+{
+  id: 't2cheema@uwaterloo.ca',
+  name: 'Taha Cheema',
+  team: 'University of Waterloo - Waterloo, Canada',
+  role: 1
+}
+{
+  id: 'tarik@simula.no',
+  name: 'Tarik Cicic',
+  team: 'Simula Metropolitan Centre for Digital Engineering - Oslo, Norway',
+  role: 1
+}
+{
+  id: 'tedx.iiitdelhi3@gmail.com',
+  name: 'Aryan Taneja',
+  team: 'Microsoft Research - India',
+  role: 1
+}
+{
+  id: 'tedx.iiitdelhi@gmail.com',
+  name: 'Aryan Taneja',
+  team: 'MSR India - India',
+  role: 1
+}
+{
+  id: 'ubjgreat@gmail.com',
+  name: 'Bijia You',
+  team: 'Beijing University of Posts and Telecommunications - Beijing, China',
+  role: 1
+}
+{
+  id: 'ul338af@surrey.ac.uk',
+  name: 'Aravindh Raman',
+  team: 'University of Surrey - 51.5072, 0.1276',
+  role: 1
+}
+{
+  id: 'v.khandkar@surrey.ac.uk',
+  name: 'vinod',
+  role: 1,
+  team: ''
+}
+{
+  id: 'vssatvik@cs.ubc.ca',
+  name: 'Satvik Vemuganti',
+  team: 'University of British Columbia - Vancouver',
+  role: 1
+}
+{
+  id: 'wang.sizh@northeastern.edu',
+  name: 'Sizhe Wang',
+  team: 'Northeastern University - Boston, US',
+  role: 1
+}
+{
+  id: 'wuxin_ya@163.com',
+  name: 'Xinya Wu',
+  team: 'Shanghai Institute of Microsystem and Information Technology - Shanghai, China',
+  role: 1
+}
+{
+  id: 'yannis.matezki@tum.de',
+  name: 'Yannis Matezki',
+  team: 'TUM - Munich, Germany',
+  role: 1
+}
+{
+  id: 'yuanzhiyu@u.nus.edu',
+  name: 'Zhiyu Yuan',
+  team: 'National University of Singapore - Singapore',
+  role: 1
+}
+{
+  id: 'yz02055@surrey.ac.uk',
+  name: 'Roger Zhang',
+  team: 'University of Surrey - Woking',
+  role: 1
+}
+{
+  id: 'zhifenghan.mail@gmail.com',
+  name: 'Zhifeng Han',
+  team: 'Tsinghua University - Beijing, China',
+  role: 1
+}
+{
+  id: 'zujizhou@tudelft.nl',
+  name: 'Zuji Zhou',
+  team: 'Tu Delft - Delft, the Netherlands',
+  role: 1
+}
