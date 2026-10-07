@@ -19,8 +19,18 @@ class LeotestNode:
                 registered_at='2020-01-01',
                 last_status_change='2020-01-01',
                 bandwidth_limits_json='[]',
-                availability_history_json='[]'):
-        """init"""
+                availability_history_json='[]',
+                timezone=None):
+        """init
+
+        ``timezone`` is the IANA zone the node last reported on a heartbeat
+        (see ``set_node_timezone``/``get_node_profile`` in the datastore). It is
+        written to the ``nodes`` collection directly, outside of ``document()``,
+        so it is accepted here only to keep ``LeotestNode(**node)`` working when
+        reconstructing a node from a stored Mongo document — it is deliberately
+        left out of ``document()`` and ``document_proto_compatible()``, since the
+        ``_node`` proto message has no such field.
+        """
 
         self.nodeid = nodeid
         self.name = name 
@@ -40,6 +50,7 @@ class LeotestNode:
             bandwidth_limits_json)
         self.availability_history_json = self._ensure_json_text(
             availability_history_json)
+        self.timezone = timezone
 
     def _ensure_json_text(self, value):
         if value in (None, ''):
