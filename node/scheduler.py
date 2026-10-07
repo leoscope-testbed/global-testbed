@@ -14,6 +14,7 @@ from crontab import CronTab
 from common.utils import time_now, get_public_ip, get_weather_mon_info
 from common.client import LeotestClient
 from common.job import LeotestJobCron, LeotestJobAtq, LeotestTask
+from common.job_events import local_timezone_name
 from google.protobuf.json_format import MessageToDict
 from pymemcache.client.base import Client as memcache_client
 from common import config as cfg
@@ -476,7 +477,7 @@ def _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_sched
     # Heartbeat + node presence
     # ------------------------------------------------------------------
     log.info("[scheduler][tick] sending heartbeat nodeid=%s", nodeid)
-    client.send_heartbeat(nodeid)
+    client.send_heartbeat(nodeid, timezone=local_timezone_name())
     public_ip = get_public_ip()
     client.update_node(nodeid=nodeid, public_ip=public_ip)
     log.info("[scheduler][tick] node presence updated nodeid=%s public_ip=%s", nodeid, public_ip)

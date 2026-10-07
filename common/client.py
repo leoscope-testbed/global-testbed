@@ -135,13 +135,18 @@ class LeotestClient:
                 # bind the client and teh server 
                 self.grpc_stub = pb2_grpc.LeotestOrchestratorStub(channel)
 
-    def send_heartbeat(self, nodeid):
+    def send_heartbeat(self, nodeid, timezone=None):
         """ Send heartbeat gRPC API sends regular messages to update it's status.
+
+        ``timezone`` is the IANA name the node's cron runs in, so the orchestrator
+        can judge scheduled fire times in the same zone.
         """        
         for attempt in self._retry():
             with attempt:
                 log.info('sending heartbeat')
                 message = pb2.message_heartbeat(nodeid=nodeid)
+                if timezone:
+                    message.timezone = timezone
                 return self.grpc_stub.report_heartbeat(message, timeout=self.timeout)
 
     def update_config(self, config_json):
@@ -445,7 +450,8 @@ class LeotestClient:
 
     def update_run(self, runid, jobid, nodeid, userid, start_time, 
                             status, status_message, 
-                            last_updated=None, end_time=None, blob_url=''):
+                            last_updated=None, end_time=None, blob_url='',
+                            stage=None, reason_code=None, exit_code=None, trigger_verdict=None):
         
         if not last_updated:
             last_updated = str(time_now())
@@ -468,9 +474,38 @@ class LeotestClient:
                     'status': status,
                     'status_message': status_message
                 }
+                for key, value in (('stage', stage), ('reason_code', reason_code),
+                                   ('exit_code', exit_code), ('trigger_verdict', trigger_verdict)):
+                    if value is not None:
+                        run[key] = value
                 message = pb2.message_update_run(run=run)
                 return self.grpc_stub.update_run(message, timeout=self.timeout)
     
+
+    def report_job_event(self, jobid, stage, outcome, reason_code='', message='', runid='',
+                         nodeid='', userid='', occurrence='', source='node'):
+        """Record one job event (a step of a scheduled job) with the orchestrator.
+
+        Events are idempotent on the orchestrator side, so retrying is safe.
+        """
+        event = {
+            'jobid': jobid,
+            'stage': stage,
+            'outcome': outcome,
+            'reason_code': reason_code or '',
+            'message': message or '',
+            'runid': runid or '',
+            'nodeid': nodeid or '',
+            'userid': userid or '',
+            'occurrence': str(occurrence) if occurrence else '',
+            'source': source,
+            'timestamp': str(time_now()),
+        }
+        for attempt in self._retry():
+            with attempt:
+                log.info('sending job event (jobid=%s stage=%s outcome=%s)' % (jobid, stage, outcome))
+                request = pb2.message_report_job_event(event=event)
+                return self.grpc_stub.report_job_event(request, timeout=self.timeout)
 
     def get_runs(self, userid=None, runid=None, jobid=None, nodeid=None, time_range=None, limit=None):
         for attempt in self._retry():

@@ -27,6 +27,8 @@ from common.user import LeotestUser, LeotestUserRoles
 from common.node import LeotestNode
 from common.trigger import verify_trigger_default
 from common import config as cfg
+from common import job_events as je
+from orchestrator.reconciler import JobReconciler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -167,6 +169,8 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
 
         if nodeid == _userid:
             self.db.mark_node(nodeid)
+            if request.HasField('timezone') and je.is_valid_timezone(request.timezone):
+                self.db.set_node_timezone(nodeid, request.timezone)
             log.info("[heartbeat] OK nodeid=%s", nodeid)
             result = {'received': True}
         else:
@@ -637,6 +641,7 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         state = 1
         msg = "unknown error"
         schedule_conflict = False
+        warnings = []
 
         id = request.id
         nodeid = request.nodeid 
@@ -796,11 +801,15 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                                             trigger=trigger,
                                             config=config)
                     log.info("[schedule_job] adding job to datastore: jobid=%s", id)
+                    job.created_at = datetime.utcnow()
                     state, msg = self.db.add_job(job)
+                    if state == 0:
+                        warnings = self._record_schedule_outcome(id, nodeid, userid, config)
 
         result = {
             'state': state,
-            'message': msg
+            'message': msg,
+            'warnings': warnings
         }
         return pb2.message_schedule_job_response(**result)
 
@@ -1237,6 +1246,10 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
         blob_url = request.run.blob_url
         status = request.run.status
         status_message = request.run.status_message
+        stage = request.run.stage if request.run.HasField('stage') else None
+        reason_code = request.run.reason_code if request.run.HasField('reason_code') else None
+        exit_code = request.run.exit_code if request.run.HasField('exit_code') else None
+        trigger_verdict = request.run.trigger_verdict if request.run.HasField('trigger_verdict') else None
 
         log.info("[update_run] runid=%s jobid=%s nodeid=%s userid=%s status=%s message=%r blob_url=%s",
                  runid, jobid, nodeid, userid, status, status_message,
@@ -1252,7 +1265,11 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             last_updated=last_updated,
             blob_url=blob_url,
             status=status, 
-            status_message=status_message)
+            status_message=status_message,
+            stage=stage,
+            reason_code=reason_code,
+            exit_code=exit_code,
+            trigger_verdict=trigger_verdict)
         state, message = self.db.update_run(run)
         self.db.mark_node(nodeid)
         result = {
@@ -1262,6 +1279,91 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
 
         log.info("[update_run] reply runid=%s jobid=%s state=%s message=%s", runid, jobid, state, message)
         return pb2.message_update_run_response(**result)
+
+    @staticmethod
+    def _optional_run_fields(run):
+        """Diagnostic fields of a run that were actually reported."""
+        return {field: getattr(run, field) for field in LeotestRun.OPTIONAL_FIELDS
+                if getattr(run, field, None) is not None}
+
+    def _record_schedule_outcome(self, jobid, nodeid, userid, config):
+        """Write the schedule-time events for a stored job and return its warnings.
+
+        Warnings never block scheduling. They are visible in the response and
+        stored as WARN events so the problem is on record even if the caller
+        ignores the response.
+        """
+        now = datetime.utcnow()
+        profile = self.db.get_node_profile(nodeid) or {}
+        found = je.schedule_warnings(config, profile.get("last_active"), now,
+                                     cfg.NODE_STALE_SECS, profile.get("timezone"))
+
+        base = {
+            'jobid': jobid,
+            'nodeid': nodeid,
+            'userid': userid,
+            'stage': je.STAGE_SCHEDULE,
+            'source': 'orchestrator',
+            'timestamp': now,
+        }
+        self.db.add_job_event(dict(
+            base,
+            event_id=je.event_id(jobid, je.STAGE_SCHEDULE, discriminator='submitted'),
+            outcome=je.OUTCOME_OK,
+            reason_code='',
+            message='job accepted and stored'))
+        for reason, message in found:
+            self.db.add_job_event(dict(
+                base,
+                event_id=je.event_id(jobid, je.STAGE_SCHEDULE, discriminator=reason),
+                outcome=je.OUTCOME_WARN,
+                reason_code=reason,
+                message=je.truncate(message)))
+        return [message for _, message in found]
+
+    @CheckToken(pb2.message_report_job_event_response,
+                grpc.StatusCode.UNAUTHENTICATED,
+                "Invalid token")
+    def report_job_event(self, request, context):
+        """Record one job event reported by a node.
+
+        Events are append-only. An event whose ``event_id`` is already stored is
+        ignored, so retries from a node are safe.
+
+        :param request: gRPC request message for ``report_job_event``
+        :type request: :class:`pb2.message_report_job_event`
+        :param context: gRPC context
+        :type context: Refer to gRPC documentation
+        :return: ``state`` is ``0`` when the event is stored, ``1`` otherwise.
+        :rtype: :class:`pb2.message_report_job_event_response`
+        """
+        event = request.event
+        if not (event.jobid and event.stage and event.outcome):
+            return pb2.message_report_job_event_response(
+                state=1, message="jobid, stage and outcome are required")
+        try:
+            occurrence = je.parse_utc(event.occurrence) if event.occurrence else None
+            timestamp = je.parse_utc(event.timestamp) if event.timestamp else datetime.utcnow()
+        except (ValueError, OverflowError):
+            return pb2.message_report_job_event_response(
+                state=1, message="occurrence or timestamp is not a valid time")
+
+        self.db.add_job_event({
+            'event_id': event.event_id or je.event_id(
+                event.jobid, event.stage, event.occurrence, event.timestamp),
+            'jobid': event.jobid,
+            'runid': event.runid or None,
+            'nodeid': event.nodeid or None,
+            'userid': event.userid or None,
+            'occurrence': occurrence,
+            'stage': event.stage,
+            'outcome': event.outcome,
+            'reason_code': event.reason_code or None,
+            'message': je.truncate(event.message),
+            'source': event.source or 'node',
+            'timestamp': timestamp,
+        })
+        return pb2.message_report_job_event_response(state=0, message="event recorded")
 
     @CheckToken(pb2.message_get_runs_response, 
                 grpc.StatusCode.UNAUTHENTICATED, 
@@ -1329,7 +1431,8 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                 'end_time': str(run.end_time),
                 'blob_url': run.blob_url,
                 'status': run.status,
-                'status_message': run.status_message
+                'status_message': run.status_message,
+                **self._optional_run_fields(run)
             })
         
         result = {
@@ -1972,6 +2075,8 @@ class LeotestOrchestrator:
         listen_addr = f'[::]:{self.grpc_port}'
         grpc_service.add_secure_port(listen_addr, server_credentials)
         grpc_service.start()
+        if cfg.RECONCILER_ENABLED:
+            JobReconciler(self.db).start()
         log.info("[orchestrator] gRPC server started and listening on %s (TLS)", listen_addr)
         grpc_service.wait_for_termination()
     

@@ -12,6 +12,7 @@ import yaml
 import json
 import shutil
 import docker
+import redis
 import logging
 import argparse
 import traceback
@@ -27,6 +28,7 @@ from common.client import LeotestClient
 from common.azure import download_file
 from common.utils import route, time_now, TerminalGrpcDataCsv, make_archive, StorageDirectoryClient
 from common import config as cfg
+from common import job_events as je
 
 import common.leotest_pb2_grpc as pb2_grpc
 import common.leotest_pb2 as pb2
@@ -91,6 +93,13 @@ class LeotestExecutor:
         self.executor_log_stdout = params["executor_log_stdout"]
         self.executor_log_stderr = params["executor_log_stderr"]
 
+        # Outcome bookkeeping. The first failure recorded decides the terminal status.
+        self.stage = je.STAGE_DEPLOY
+        self.failure = None
+        self.trigger_verdict = None
+        self.trigger_detail = ""
+        self.container_ttl_stopped = False
+
         grpc_path = cfg.STARLINK_GRPC_TOOLS_PATH
         grpc_csv_file = "%s/grpc.csv" % self.params["workdir"]
         self.log.info("[executor] initialising Starlink gRPC telemetry poll: "
@@ -100,6 +109,180 @@ class LeotestExecutor:
             logfile=grpc_csv_file)
         self.terminal_grpc_poll.run(_async=True)
         self.log.info("[executor] Starlink gRPC telemetry poll started asynchronously")
+
+    # ------------------------------------------------------------------
+    # outcome reporting: every failure is recorded with a stage and reason
+    # ------------------------------------------------------------------
+    def _update_run(self, **fields):
+        self.params["client"].update_run(**self.client_params, **fields)
+
+    def _report_job_event(self, stage, outcome, reason_code="", message=""):
+        try:
+            self.params["client"].report_job_event(
+                jobid=self.client_params["jobid"],
+                stage=stage,
+                outcome=outcome,
+                reason_code=reason_code,
+                message=je.truncate(message),
+                runid=self.client_params["runid"],
+                nodeid=self.client_params["nodeid"],
+                userid=self.client_params["userid"],
+                occurrence=self.client_params["start_time"],
+                source="executor")
+        except Exception:
+            self.log.exception("[executor][event] could not report stage=%s outcome=%s", stage, outcome)
+
+    def _record_failure(self, stage, reason_code, message, exit_code=None):
+        """Remember the first failure; later ones are logged but do not replace it."""
+        message = je.truncate(message)
+        if self.failure is not None:
+            self.log.warning("[executor][failure] secondary failure not recorded: stage=%s reason=%s message=%s",
+                             stage, reason_code, message)
+            return
+        self.failure = {"stage": stage, "reason_code": reason_code,
+                        "message": message, "exit_code": exit_code}
+        self.log.error("[executor][failure] stage=%s reason=%s exit_code=%s message=%s",
+                       stage, reason_code, exit_code, message)
+        self._report_job_event(stage, je.OUTCOME_FAILED, reason_code, message)
+
+    def _failure_fields(self):
+        if self.failure is None:
+            return {}
+        return {"stage": self.failure["stage"],
+                "reason_code": self.failure["reason_code"],
+                "exit_code": self.failure["exit_code"]}
+
+    def _failure_status_message(self):
+        failure = self.failure
+        text = "%s failed (%s)" % (failure["stage"], failure["reason_code"])
+        if failure["exit_code"] is not None:
+            text += " exit code %s" % failure["exit_code"]
+        if failure["message"]:
+            text += ": %s" % failure["message"]
+        return je.truncate(text)
+
+    def _verdict_field(self):
+        if self.trigger_verdict in (None, je.TRIGGER_NOT_CONFIGURED):
+            return None
+        return self.trigger_verdict
+
+    def _trigger_note(self):
+        if self.trigger_verdict == je.TRIGGER_NOT_MET:
+            return "trigger NOT met at fire time (%s); gating is off so the experiment ran" % self.trigger_detail
+        if self.trigger_verdict == je.TRIGGER_UNKNOWN:
+            return "trigger verdict unknown: %s" % self.trigger_detail
+        if self.trigger_verdict == je.TRIGGER_MET:
+            return "trigger met at fire time (%s)" % self.trigger_detail
+        return ""
+
+    def _success_message(self):
+        note = self._trigger_note()
+        return "Done executing the job." + (" (%s)" % note if note else "")
+
+    def _preparing_message(self):
+        return "Preparing run"
+
+    def _report_started(self):
+        message = self._preparing_message()
+        note = self._trigger_note()
+        if note:
+            message += "; " + note
+        self._update_run(status="DEPLOYING",
+                         status_message=je.truncate(message),
+                         trigger_verdict=self._verdict_field())
+
+    def _trigger_configured(self):
+        """True or False from the orchestrator's job record, or None if it cannot be read."""
+        try:
+            res = MessageToDict(self.params["client"].get_job_by_id(self.client_params["jobid"]))
+        except Exception:
+            self.log.exception("[executor][trigger] could not read job record; trigger configuration unknown")
+            return None
+        if not res.get("exists"):
+            return None
+        return bool(res.get("trigger"))
+
+    def _read_verdict_record(self, jobid):
+        """Return ``(record, error)``; ``record`` is ``None`` when nothing is stored."""
+        try:
+            client = redis.Redis(host=cfg.REDIS_HOST, port=cfg.REDIS_PORT, db=cfg.REDIS_DB,
+                                 socket_timeout=5)
+            raw = client.get(je.trigger_verdict_key(jobid))
+        except Exception as exc:
+            return None, str(exc)
+        if raw is None:
+            return None, None
+        try:
+            return json.loads(raw), None
+        except ValueError as exc:
+            return None, "stored verdict is not valid JSON: %s" % exc
+
+    def _evaluate_trigger(self):
+        """Work out this run's trigger verdict. Returns True when the gate skips the run.
+
+        Never raises. A trigger that cannot be evaluated is reported as UNKNOWN; it
+        is not treated as a failure of the experiment.
+        """
+        jobid = self.client_params["jobid"]
+        if self.params["server_mode"]:
+            self.trigger_verdict = je.TRIGGER_NOT_CONFIGURED
+            return False
+
+        configured = self._trigger_configured()
+        record, read_error = self._read_verdict_record(jobid)
+        try:
+            verdict, detail = je.trigger_verdict(
+                record if read_error is None else None,
+                datetime.utcnow(), cfg.TRIGGER_VERDICT_MAX_AGE_SECS, configured)
+        except Exception as exc:
+            verdict, detail = je.TRIGGER_UNKNOWN, "stored verdict is malformed: %s" % exc
+        if read_error is not None and verdict == je.TRIGGER_UNKNOWN:
+            detail = "could not read the node trigger record: %s" % je.truncate(read_error, 200)
+
+        self.trigger_verdict = verdict
+        self.trigger_detail = detail
+        skip = je.should_skip_for_trigger(verdict, cfg.TRIGGER_GATE_ENABLED)
+        self.log.info("[executor][trigger] jobid=%s verdict=%s gate=%s skip=%s detail=%s",
+                      jobid, verdict, cfg.TRIGGER_GATE_ENABLED, skip, detail)
+        return skip
+
+    def _finish_skipped(self):
+        """Terminal state for a run the trigger gate skipped. Nothing was deployed."""
+        message = je.truncate("trigger NOT met at fire time (%s); the experiment was skipped by the trigger gate"
+                              % self.trigger_detail)
+        self._report_job_event(je.STAGE_TRIGGER, je.OUTCOME_SKIPPED, je.REASON_TRIGGER_NOT_MET, message)
+        self._update_run(status=je.STATUS_SKIPPED,
+                         status_message=message,
+                         stage=je.STAGE_TRIGGER,
+                         reason_code=je.REASON_TRIGGER_NOT_MET,
+                         trigger_verdict=self.trigger_verdict,
+                         end_time=str(time_now()))
+        self.log.warning("[executor] run SKIPPED by trigger gate runid=%s jobid=%s",
+                         self.client_params["runid"], self.client_params["jobid"])
+
+    def _finalize(self):
+        """Always runs: stop server and container, upload logs, write the terminal status."""
+        try:
+            self.finish_job()
+        except Exception as exc:
+            self.log.exception("[executor][finalize] finish failed; writing terminal FAILED status")
+            self._record_failure(je.STAGE_FINISH, je.REASON_FINISH_FAILED, str(exc))
+            try:
+                self._finish_job()
+            except Exception:
+                self.log.exception("[executor][finalize] container cleanup failed")
+            try:
+                self._update_run(status=je.STATUS_FAILED,
+                                 status_message=self._failure_status_message(),
+                                 end_time=str(time_now()),
+                                 blob_url="",
+                                 trigger_verdict=self._verdict_field(),
+                                 **self._failure_fields())
+            except Exception:
+                self.log.exception("[executor][finalize] could not write terminal FAILED status")
+
+    def _check_execution(self):
+        """Subclass hook: decide whether the execution ended acceptably."""
 
     # ------------------------------------------------------------------
     # deploy
@@ -170,16 +353,21 @@ class LeotestExecutor:
         runid = self.client_params["runid"]
         jobid = self.client_params["jobid"]
         self.log.info("[executor][execute] START runid=%s jobid=%s", runid, jobid)
+        self.stage = je.STAGE_EXECUTE
         self.params["client"].update_run(
             status="EXECUTING",
             status_message="Executing job.",
+            trigger_verdict=self._verdict_field(),
             **self.client_params)
         try:
             self._execute_job()
-            self.log.info("[executor][execute] DONE runid=%s jobid=%s", runid, jobid)
-        except Exception:
+            self._check_execution()
+            self.log.info("[executor][execute] DONE runid=%s jobid=%s failed=%s",
+                          runid, jobid, self.failure is not None)
+        except Exception as exc:
             self.log.exception("[executor][execute] EXCEPTION during job execution "
                                "runid=%s jobid=%s", runid, jobid)
+            self._record_failure(self.stage, je.default_reason(self.stage, str(exc)), str(exc))
 
     # ------------------------------------------------------------------
     # finish / artifact upload
@@ -269,10 +457,11 @@ class LeotestExecutor:
             azclient = StorageDirectoryClient(connection_string, container)
             azclient.upload_file(archive_path, archive_path_remote)
             self.log.info("[executor][finish][upload] upload complete: %s", archive_path_remote)
-        except Exception:
+        except Exception as exc:
             self.log.exception("[executor][finish][upload] FAILED to upload artifact "
                                "runid=%s archive=%s remote=%s container=%s",
                                runid, archive_path, archive_path_remote, container)
+            self._record_failure(je.STAGE_FINISH, je.REASON_ARTIFACT_UPLOAD_FAILED, str(exc))
             raise
 
         # --- SAS URL ---
@@ -307,13 +496,18 @@ class LeotestExecutor:
         self._finish_job()
 
         end_time = str(time_now())
-        self.log.info("[executor][finish] marking run COMPLETE runid=%s jobid=%s end_time=%s",
-                      runid, jobid, end_time)
+        if self.failure is None:
+            outcome = {"status": "COMPLETE", "status_message": self._success_message()}
+        else:
+            outcome = {"status": je.STATUS_FAILED, "status_message": self._failure_status_message()}
+        self.log.info("[executor][finish] marking run %s runid=%s jobid=%s end_time=%s",
+                      outcome["status"], runid, jobid, end_time)
         self.params["client"].update_run(
             end_time=end_time,
             blob_url=blob_url,
-            status="COMPLETE",
-            status_message="Done executing the job.",
+            trigger_verdict=self._verdict_field(),
+            **outcome,
+            **self._failure_fields(),
             **self.client_params)
         self.log.info("[executor][finish] DONE runid=%s jobid=%s", runid, jobid)
 
@@ -330,9 +524,19 @@ class LeotestExecutor:
                 status_message=reason,
                 **self.client_params)
         else:
-            self.deploy_job()
-            self.execute_job()
-            self.finish_job()
+            try:
+                if self._evaluate_trigger():
+                    self._finish_skipped()
+                    return
+                self._report_started()
+                self.stage = je.STAGE_DEPLOY
+                self.deploy_job()
+                if self.failure is None:
+                    self.execute_job()
+            except Exception as exc:
+                self.log.exception("[executor] lifecycle raised at stage=%s", self.stage)
+                self._record_failure(self.stage, je.default_reason(self.stage, str(exc)), str(exc))
+            self._finalize()
 
 
 class LeotestExecutorDocker(LeotestExecutor):
@@ -346,13 +550,16 @@ class LeotestExecutorDocker(LeotestExecutor):
         if self.params["server_mode"]:
             self.container_name += "_server"
         self.log.info("[executor][docker] container_name=%s", self.container_name)
+        self.container_start_error = None
 
     def _deploy_job(self):
         """Pull image; remove any stale instance from a previous failed run."""
-        image = self.params["experiment"]["docker"]["image"]
+        image = self._configured_image()
         self.log.info("[executor][docker][deploy] pulling image=%s", image)
+        self.stage = je.STAGE_IMAGE_PULL
         try:
             self.docker_client.images.pull(image)
+            self.stage = je.STAGE_DEPLOY
             self.log.info("[executor][docker][deploy] image pull complete: %s", image)
         except Exception:
             self.log.exception("[executor][docker][deploy] image pull FAILED for %s", image)
@@ -398,6 +605,7 @@ class LeotestExecutorDocker(LeotestExecutor):
         self.log.info("[executor][docker][execute] container thread started name=%s",
                       self.container_name)
 
+        self.stage = je.STAGE_CONTAINER
         # --- Wait for the container to reach 'running' state ---
         time_start = time_now()
         delta = 0
@@ -463,6 +671,7 @@ class LeotestExecutorDocker(LeotestExecutor):
                 last_log_tick = tick
 
         if _container_is_running(self.docker_client, self.container_name):
+            self.container_ttl_stopped = True
             self.log.warning("[executor][docker][execute] TTL exceeded (%ds) — stopping container "
                              "runid=%s name=%s", remaining_ttl, runid, self.container_name)
             try:
@@ -477,8 +686,9 @@ class LeotestExecutorDocker(LeotestExecutor):
                 self.log.exception("[executor][docker][execute] error stopping container "
                                    "name=%s", self.container_name)
         else:
-            self.log.info("[executor][docker][execute] container exited cleanly runid=%s "
-                          "name=%s elapsed=%ds", runid, self.container_name, delta)
+            self.log.info("[executor][docker][execute] container no longer running runid=%s "
+                          "name=%s elapsed=%ds (exit status is checked separately)",
+                          runid, self.container_name, delta)
 
         thread.join(timeout=30)
         if thread.is_alive():
@@ -558,8 +768,13 @@ class LeotestExecutorDocker(LeotestExecutor):
             )
             self.log.info("[executor][docker][run] container started — streaming logs "
                           "name=%s runid=%s", self.container_name, runid)
-        except Exception:
-            self.log.exception("[executor][docker][run] containers.run() raised name=%s "
+        except Exception as exc:
+            if isinstance(exc, docker.errors.ContainerError):
+                self.log.info("[executor][docker][run] container exited with code=%s name=%s runid=%s",
+                              exc.exit_status, self.container_name, runid)
+            else:
+                self.container_start_error = je.truncate(str(exc))
+                self.log.exception("[executor][docker][run] containers.run() raised name=%s "
                                "runid=%s — falling back to container.logs()", self.container_name, runid)
             try:
                 container = self.docker_client.containers.get(self.container_name)
@@ -583,6 +798,61 @@ class LeotestExecutorDocker(LeotestExecutor):
         self.log.info("[executor][docker][run] === LOG STREAM END name=%s ===",
                       self.container_name)
 
+    def _preparing_message(self):
+        image = ((self.params.get("experiment") or {}).get("docker") or {}).get("image")
+        return "Pulling image %s" % (image or "(not configured)")
+
+    def _configured_image(self):
+        image = ((self.params.get("experiment") or {}).get("docker") or {}).get("image")
+        if not image:
+            self.stage = je.STAGE_CONFIG
+            raise ValueError("experiment config has no docker.image")
+        return image
+
+    def _check_execution(self):
+        """Classify how the container ended from Docker's own state.
+
+        The log-streaming thread does not reliably report the exit code, so it is
+        read here. A container stopped by our own TTL ends non-zero by design and
+        is not a failure.
+        """
+        self.stage = je.STAGE_CONTAINER
+        try:
+            container = self.docker_client.containers.get(self.container_name)
+        except docker.errors.NotFound:
+            self._record_failure(je.STAGE_CONTAINER, je.REASON_CONTAINER_START_FAILED,
+                                 self.container_start_error or "container %s was never created"
+                                 % self.container_name)
+            return
+        except Exception as exc:
+            self._record_failure(je.STAGE_CONTAINER, je.REASON_CONTAINER_STATE_UNKNOWN,
+                                 "could not inspect container: %s" % exc)
+            return
+
+        state = container.attrs.get("State") or {}
+        started_at = state.get("StartedAt") or ""
+        if not started_at or started_at.startswith("0001-01-01"):
+            self._record_failure(je.STAGE_CONTAINER, je.REASON_CONTAINER_START_FAILED,
+                                 self.container_start_error or "container was never started")
+            return
+
+        exit_code = state.get("ExitCode")
+        running = bool(state.get("Running"))
+        reason = je.classify_container_exit(exit_code, self.container_ttl_stopped, running)
+        if reason is None:
+            if self.container_ttl_stopped and exit_code not in (None, 0):
+                self.log.info("[executor][docker][check] container stopped by TTL with exit=%s (expected)",
+                              exit_code)
+            return
+        if reason == je.REASON_CONTAINER_STOP_FAILED:
+            message = "container still running after the TTL stop"
+        elif reason == je.REASON_CONTAINER_STATE_UNKNOWN:
+            message = "container exit code is not available"
+        else:
+            message = "container exited with code %s%s" % (
+                exit_code, " (killed: out of memory)" if state.get("OOMKilled") else "")
+        self._record_failure(je.STAGE_CONTAINER, reason, message, exit_code=exit_code)
+
     def _finish_job(self):
         """Stop and remove the experiment container."""
         try:
@@ -604,6 +874,31 @@ class LeotestExecutorDocker(LeotestExecutor):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+def report_pre_run_failure(client, runid, jobid, nodeid, userid, start_time,
+                           stage, reason_code, message):
+    """Record a failure that happened before the executor could start its run.
+
+    Writes a FAILED run row (so it appears in the runs tab) and a job event.
+    Both writes are best effort: the process is about to exit with the original error.
+    """
+    message = je.truncate(message)
+    try:
+        client.update_run(
+            runid=runid, jobid=jobid, nodeid=nodeid, userid=userid, start_time=start_time,
+            status=je.STATUS_FAILED,
+            status_message=je.truncate("%s failed (%s): %s" % (stage, reason_code, message)),
+            stage=stage, reason_code=reason_code)
+    except Exception:
+        log.exception("[executor] could not write FAILED run row runid=%s", runid)
+    try:
+        client.report_job_event(
+            jobid=jobid, stage=stage, outcome=je.OUTCOME_FAILED, reason_code=reason_code,
+            message=message, runid=runid, nodeid=nodeid, userid=userid,
+            occurrence=start_time, source="executor")
+    except Exception:
+        log.exception("[executor] could not report job event runid=%s", runid)
+
+
 def main():
     # Minimal bootstrap logging until we open the per-run log file
     logging.basicConfig(
@@ -890,86 +1185,98 @@ def main():
     azclient = StorageDirectoryClient(connection_string_global, container_global)
     exp_args_from_orch = None
 
-    # --- experiment-config.yaml ---
-    if azclient.check_blob_exists(experiment_config_remote):
-        log_run.info("[executor][config] downloading experiment-config from blob: "
-                     "container=%s blob=%s → %s",
-                     container_global, experiment_config_remote, experiment_config_dst)
-        download_file(connection_string_global, container_global,
-                      experiment_config_remote, experiment_config_dst)
-    else:
-        log_run.info("[executor][config] experiment-config not in blob — "
-                     "fetching from orchestrator for jobid=%s → %s", jobid, experiment_config_dst)
-        try:
-            res = client.get_job_by_id(jobid)
-            exp_args_from_orch = MessageToDict(res)
-            exp_config_yaml = exp_args_from_orch.get("config", "")
-            with open(experiment_config_dst, "w") as f:
-                f.write(exp_config_yaml)
-            log_run.info("[executor][config] experiment-config written to %s (%d bytes)",
-                         experiment_config_dst, len(exp_config_yaml))
-        except Exception:
-            log_run.exception("[executor][config] FAILED to fetch experiment-config for jobid=%s",
-                              jobid)
-            raise
+    try:
+        # --- experiment-config.yaml ---
+        if azclient.check_blob_exists(experiment_config_remote):
+            log_run.info("[executor][config] downloading experiment-config from blob: "
+                         "container=%s blob=%s → %s",
+                         container_global, experiment_config_remote, experiment_config_dst)
+            download_file(connection_string_global, container_global,
+                          experiment_config_remote, experiment_config_dst)
+        else:
+            log_run.info("[executor][config] experiment-config not in blob — "
+                         "fetching from orchestrator for jobid=%s → %s", jobid, experiment_config_dst)
+            try:
+                res = client.get_job_by_id(jobid)
+                exp_args_from_orch = MessageToDict(res)
+                exp_config_yaml = exp_args_from_orch.get("config", "")
+                with open(experiment_config_dst, "w") as f:
+                    f.write(exp_config_yaml)
+                log_run.info("[executor][config] experiment-config written to %s (%d bytes)",
+                             experiment_config_dst, len(exp_config_yaml))
+            except Exception:
+                log_run.exception("[executor][config] FAILED to fetch experiment-config for jobid=%s",
+                                  jobid)
+                raise
 
-    # --- experiment-args.json ---
-    if azclient.check_blob_exists(experiment_args_remote):
-        log_run.info("[executor][config] downloading experiment-args from blob: "
-                     "container=%s blob=%s → %s",
-                     container_global, experiment_args_remote, experiment_args_dst)
-        download_file(connection_string_global, container_global,
-                      experiment_args_remote, experiment_args_dst)
-    else:
-        log_run.info("[executor][config] experiment-args not in blob — "
-                     "fetching from orchestrator for jobid=%s → %s", jobid, experiment_args_dst)
-        if not exp_args_from_orch:
-            res = client.get_job_by_id(jobid)
-            exp_args_from_orch = MessageToDict(res)
+        # --- experiment-args.json ---
+        if azclient.check_blob_exists(experiment_args_remote):
+            log_run.info("[executor][config] downloading experiment-args from blob: "
+                         "container=%s blob=%s → %s",
+                         container_global, experiment_args_remote, experiment_args_dst)
+            download_file(connection_string_global, container_global,
+                          experiment_args_remote, experiment_args_dst)
+        else:
+            log_run.info("[executor][config] experiment-args not in blob — "
+                         "fetching from orchestrator for jobid=%s → %s", jobid, experiment_args_dst)
+            if not exp_args_from_orch:
+                res = client.get_job_by_id(jobid)
+                exp_args_from_orch = MessageToDict(res)
 
-        # BUG FIX: 'config' key check should be on exp_args_from_orch (dict), not
-        # exp_config_yaml (string). Previously: `if 'config' in exp_config:` where
-        # exp_config was the YAML string — always True since it searched substrings.
-        args_to_dump = {k: v for k, v in exp_args_from_orch.items() if k != "config"}
-        with open(experiment_args_dst, "w") as f:
-            json.dump(args_to_dump, f, indent=2)
-        log_run.info("[executor][config] experiment-args written to %s", experiment_args_dst)
+            # BUG FIX: 'config' key check should be on exp_args_from_orch (dict), not
+            # exp_config_yaml (string). Previously: `if 'config' in exp_config:` where
+            # exp_config was the YAML string — always True since it searched substrings.
+            args_to_dump = {k: v for k, v in exp_args_from_orch.items() if k != "config"}
+            with open(experiment_args_dst, "w") as f:
+                json.dump(args_to_dump, f, indent=2)
+            log_run.info("[executor][config] experiment-args written to %s", experiment_args_dst)
 
-    # --- executor-config.yaml ---
-    log_run.info("[executor][config] copying executor-config: %s → %s",
-                 args.executor_config, executor_config_dst)
-    shutil.copy(args.executor_config, executor_config_dst)
+        # --- executor-config.yaml ---
+        log_run.info("[executor][config] copying executor-config: %s → %s",
+                     args.executor_config, executor_config_dst)
+        shutil.copy(args.executor_config, executor_config_dst)
 
-    # --- parse configs ---
-    log_run.info("[executor][config] parsing experiment-config.yaml from %s",
-                 experiment_config_dst)
-    with open(experiment_config_dst, "r") as f:
-        try:
-            experiment_config_dict = yaml.safe_load(f)
-        except yaml.YAMLError:
-            log_run.exception("[executor][config] FAILED to parse experiment-config.yaml "
-                              "path=%s", experiment_config_dst)
-            raise
-    log_run.info("[executor][config] experiment-config sections: %s",
-                 list(experiment_config_dict.keys()) if experiment_config_dict else "EMPTY")
+        # --- parse configs ---
+        log_run.info("[executor][config] parsing experiment-config.yaml from %s",
+                     experiment_config_dst)
+        with open(experiment_config_dst, "r") as f:
+            try:
+                experiment_config_dict = yaml.safe_load(f)
+            except yaml.YAMLError:
+                log_run.exception("[executor][config] FAILED to parse experiment-config.yaml "
+                                  "path=%s", experiment_config_dst)
+                raise
+        log_run.info("[executor][config] experiment-config sections: %s",
+                     list(experiment_config_dict.keys()) if experiment_config_dict else "EMPTY")
 
-    log_run.info("[executor][config] parsing executor-config.yaml from %s", executor_config_dst)
-    with open(executor_config_dst, "r") as f:
-        try:
-            executor_config_dict = yaml.safe_load(f)
-        except yaml.YAMLError:
-            log_run.exception("[executor][config] FAILED to parse executor-config.yaml "
-                              "path=%s", executor_config_dst)
-            raise
-    log_run.info("[executor][config] executor-config sections: %s",
-                 list(executor_config_dict.keys()) if executor_config_dict else "EMPTY")
+        log_run.info("[executor][config] parsing executor-config.yaml from %s", executor_config_dst)
+        with open(executor_config_dst, "r") as f:
+            try:
+                executor_config_dict = yaml.safe_load(f)
+            except yaml.YAMLError:
+                log_run.exception("[executor][config] FAILED to parse executor-config.yaml "
+                                  "path=%s", executor_config_dst)
+                raise
+        log_run.info("[executor][config] executor-config sections: %s",
+                     list(executor_config_dict.keys()) if executor_config_dict else "EMPTY")
 
-    # Experiment-specific Azure credentials override the global fallback
-    cloud_cfg = experiment_config_dict.get("cloud_config", {})
-    connection_string = cloud_cfg.get("connection_string", connection_string_global)
-    container        = cloud_cfg.get("container", container_global)
-    log_run.info("[executor][config] azure: container=%s (source=%s)",
-                 container, "experiment-config" if cloud_cfg else "global-config")
+        # Experiment-specific Azure credentials override the global fallback
+        cloud_cfg = experiment_config_dict.get("cloud_config", {})
+        connection_string = cloud_cfg.get("connection_string", connection_string_global)
+        container        = cloud_cfg.get("container", container_global)
+        log_run.info("[executor][config] azure: container=%s (source=%s)",
+                     container, "experiment-config" if cloud_cfg else "global-config")
+
+    except Exception as exc:
+        log_run.exception("[executor][config] FAILED before run start runid=%s jobid=%s", runid, jobid)
+        report_pre_run_failure(
+            client, runid=runid_server if args.server else runid, jobid=jobid, nodeid=nodeid,
+            userid=userid, start_time=str(timenow),
+            stage=je.STAGE_CONFIG,
+            reason_code=(je.REASON_CONFIG_INVALID if isinstance(exc, yaml.YAMLError)
+                         else je.REASON_CONFIG_FETCH_FAILED),
+            message=str(exc))
+        raise
 
     # ------------------------------------------------------------------
     # Execute
@@ -1009,7 +1316,16 @@ def main():
 
     log_run.info("[executor] building executor mode=%s", args.mode)
     if args.mode == "docker":
-        executor = LeotestExecutorDocker(params=params)
+        try:
+            executor = LeotestExecutorDocker(params=params)
+        except Exception as exc:
+            log_run.exception("[executor] could not initialise docker executor runid=%s", runid)
+            report_pre_run_failure(
+                client, runid=runid_server if args.server else runid, jobid=jobid, nodeid=nodeid,
+                userid=userid, start_time=str(timenow),
+                stage=je.STAGE_DEPLOY, reason_code=je.REASON_DEPLOY_FAILED,
+                message="could not initialise docker executor: %s" % exc)
+            raise
     else:
         raise ValueError("Unsupported executor mode: %s" % args.mode)
 

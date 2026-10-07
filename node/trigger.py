@@ -12,6 +12,9 @@ import datetime
 import requests
 
 from common.utils import get_satellite_info
+from common import config as cfg
+from common.job_events import trigger_verdict_key
+import json
 from common.trigger import trigger_get_tree, trigger_evaluate_tree, trigger_verify, trigger_evaluate, FIELDS
 from skyfield.api import N, W, wgs84, load, EarthSatellite
 
@@ -444,7 +447,24 @@ class LeotestTriggerMode:
         for jobid, trigger in self.get_all_triggers():
             ret, _ = trigger_evaluate(trigger, self.env)
             self.mqtt_client.publish("leotest/triggers/%s" % jobid, str(ret))
+            self._store_verdict(jobid, ret)
             # print("Trigger='%s' eval='%s'" % (trigger, ret))
+
+    def _store_verdict(self, jobid, verdict):
+        """Keep the latest verdict for a job so a run starting later can report it.
+
+        The record expires after ``TRIGGER_VERDICT_MAX_AGE_SECS``, so a run never
+        reports an old verdict as current.
+        """
+        record = {
+            "verdict": bool(verdict),
+            "evaluated_at": datetime.datetime.utcnow().isoformat(),
+        }
+        try:
+            self.redis.set(trigger_verdict_key(jobid), json.dumps(record),
+                           ex=cfg.TRIGGER_VERDICT_MAX_AGE_SECS)
+        except Exception:
+            log.exception("[trigger] could not store verdict for jobid=%s", jobid)
     
     def verify_triggers(self):
         """verify triggers"""

@@ -115,6 +115,11 @@ class LeotestOrchestratorStub(object):
                 request_serializer=common_dot_leotest__pb2.message_update_run.SerializeToString,
                 response_deserializer=common_dot_leotest__pb2.message_update_run_response.FromString,
                 )
+        self.report_job_event = channel.unary_unary(
+                '/unary.LeotestOrchestrator/report_job_event',
+                request_serializer=common_dot_leotest__pb2.message_report_job_event.SerializeToString,
+                response_deserializer=common_dot_leotest__pb2.message_report_job_event_response.FromString,
+                )
         self.get_runs = channel.unary_unary(
                 '/unary.LeotestOrchestrator/get_runs',
                 request_serializer=common_dot_leotest__pb2.message_get_runs.SerializeToString,
@@ -306,6 +311,12 @@ class LeotestOrchestratorServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def report_job_event(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def get_runs(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -483,6 +494,11 @@ def add_LeotestOrchestratorServicer_to_server(servicer, server):
                     servicer.update_run,
                     request_deserializer=common_dot_leotest__pb2.message_update_run.FromString,
                     response_serializer=common_dot_leotest__pb2.message_update_run_response.SerializeToString,
+            ),
+            'report_job_event': grpc.unary_unary_rpc_method_handler(
+                    servicer.report_job_event,
+                    request_deserializer=common_dot_leotest__pb2.message_report_job_event.FromString,
+                    response_serializer=common_dot_leotest__pb2.message_report_job_event_response.SerializeToString,
             ),
             'get_runs': grpc.unary_unary_rpc_method_handler(
                     servicer.get_runs,
@@ -892,6 +908,23 @@ class LeotestOrchestrator(object):
         return grpc.experimental.unary_unary(request, target, '/unary.LeotestOrchestrator/update_run',
             common_dot_leotest__pb2.message_update_run.SerializeToString,
             common_dot_leotest__pb2.message_update_run_response.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def report_job_event(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/unary.LeotestOrchestrator/report_job_event',
+            common_dot_leotest__pb2.message_report_job_event.SerializeToString,
+            common_dot_leotest__pb2.message_report_job_event_response.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

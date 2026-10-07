@@ -287,8 +287,10 @@ class LeotestJob:
         self.overhead = overhead
         self.server = server
         self.trigger = trigger
-        self.config = config 
-    
+        self.config = config
+        # Set by the orchestrator at schedule time; never derived from document().
+        self.created_at = None
+
     def get_jobid(self):
         return self.jobid
     
@@ -460,24 +462,33 @@ class LeotestJobAtq(LeotestJob):
 class LeotestRun:
     """Class to define the structure of the job runs and associated methods.
     """    
+    # Optional diagnostics. ``None`` means "not reported", so an update that does
+    # not carry them never erases values written earlier for the same run.
+    OPTIONAL_FIELDS = ('stage', 'reason_code', 'exit_code', 'trigger_verdict')
+
     def __init__(self, runid, jobid, nodeid, userid,
-                        start_time, end_time, last_updated, blob_url, 
-                                status, status_message):
-        self.runid = runid 
+                        start_time, end_time, last_updated, blob_url,
+                                status, status_message,
+                        stage=None, reason_code=None, exit_code=None, trigger_verdict=None):
+        self.runid = runid
         self.jobid = jobid
-        self.nodeid = nodeid 
+        self.nodeid = nodeid
         self.userid = userid
         self.start_time = start_time
-        self.end_time = end_time 
+        self.end_time = end_time
         self.last_updated = last_updated
         self.blob_url = blob_url
-        self.status = status 
+        self.status = status
         self.status_message = status_message
-        
+        self.stage = stage
+        self.reason_code = reason_code
+        self.exit_code = exit_code
+        self.trigger_verdict = trigger_verdict
+
     def set_status(self, status, status_message):
         self.status = status
         self.status_message = status_message
-    
+
     def document(self):
         run = {
             'runid': self.runid,
@@ -490,8 +501,12 @@ class LeotestRun:
             'blob_url': self.blob_url,
             'status': self.status,
             'status_message': self.status_message
-        } 
-        return run 
+        }
+        for field in self.OPTIONAL_FIELDS:
+            value = getattr(self, field)
+            if value is not None:
+                run[field] = value
+        return run
 
 class LeotestTask:
     """Class to define the structure of the tasks and associated methods, jobs at a node are converted to local tasks is scheduled using ATQ or CRON.

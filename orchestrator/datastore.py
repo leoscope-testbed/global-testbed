@@ -40,6 +40,8 @@ class LeotestDatastoreMongo:
         self._jobs = self.db["jobs"]
         self._runs = self.db["runs"]
         self._tasks = self.db["tasks"]
+        self._job_events = self.db["job_events"]
+        self._reconcile_state = self.db["job_reconcile_state"]
 
         self._jobs.create_index('expire_at', expireAfterSeconds=0)
         self._runs.create_index([('jobid', ASCENDING),
@@ -55,6 +57,13 @@ class LeotestDatastoreMongo:
                                 name='node_owner_query_index')
         
         self._tasks.create_index('expire_at', expireAfterSeconds=0)
+
+        self._job_events.create_index('event_id', unique=True, name='job_event_id_index')
+        self._job_events.create_index([('jobid', ASCENDING),
+                                       ('timestamp', DESCENDING)],
+                                      name='job_event_query_index')
+        self._reconcile_state.create_index('jobid', unique=True,
+                                           name='reconcile_state_jobid_index')
         self._users.create_index('id', name='user_id_index')
         self._users.create_index('signup_token_hash', sparse=True,
                                 name='signup_token_hash_index')
@@ -399,8 +408,10 @@ class LeotestDatastoreMongo:
         """add a job"""
         
         document = job.document()
-        with self.client.start_session() as session: 
-            exists = self._jobs.find_one({"id": document['id']}, 
+        if job.created_at is not None:
+            document['created_at'] = job.created_at
+        with self.client.start_session() as session:
+            exists = self._jobs.find_one({"id": document['id']},
                                                     session=session)
             if exists: 
                 return (1, 'job with the given id exists')
@@ -637,7 +648,87 @@ class LeotestDatastoreMongo:
                 run.pop('_id')
                 runs.append(LeotestRun(**run))
             return runs
-    
+
+    def insert_run_if_absent(self, document):
+        """Write a reconciler-generated run row unless a row with that runid exists.
+
+        Used for MISSED occurrences. Reruns of the reconciler therefore never
+        overwrite a row that was already recorded.
+        """
+        insert_fields = {k: v for k, v in document.items() if k != 'runid'}
+        with self.client.start_session() as session:
+            self._runs.update_one(
+                {'runid': document['runid']},
+                {'$setOnInsert': insert_fields},
+                upsert=True,
+                session=session)
+
+    def get_run_starts(self, jobid, start_from, start_to):
+        """Start times of runs for a job within ``[start_from, start_to]``."""
+        with self.client.start_session() as session:
+            cursor = self._runs.find(
+                {'jobid': jobid, 'start_time': {'$gte': start_from, '$lte': start_to}},
+                {'_id': 0, 'start_time': 1},
+                session=session)
+            return [doc['start_time'] for doc in cursor if doc.get('start_time') is not None]
+
+    def add_job_event(self, document):
+        """Append one job event. Idempotent on ``event_id``."""
+        insert_fields = {k: v for k, v in document.items() if k != 'event_id'}
+        with self.client.start_session() as session:
+            self._job_events.update_one(
+                {'event_id': document['event_id']},
+                {'$setOnInsert': insert_fields},
+                upsert=True,
+                session=session)
+
+    def list_jobs_for_reconciliation(self):
+        """Raw cron and atq job documents currently stored."""
+        with self.client.start_session() as session:
+            cursor = self._jobs.find(
+                {'type': {'$in': ['cron', 'atq']}},
+                {'_id': 0, 'id': 1, 'type': 1, 'schedule': 1, 'start_date': 1,
+                 'end_date': 1, 'nodeid': 1, 'userid': 1, 'trigger': 1,
+                 'length_secs': 1, 'created_at': 1},
+                session=session)
+            return list(cursor)
+
+    def get_reconcile_state(self, jobid):
+        with self.client.start_session() as session:
+            return self._reconcile_state.find_one({'jobid': jobid}, {'_id': 0}, session=session)
+
+    def list_reconcile_states(self):
+        with self.client.start_session() as session:
+            return list(self._reconcile_state.find({}, {'_id': 0}, session=session))
+
+    def save_reconcile_state(self, state):
+        set_fields = {k: v for k, v in state.items() if k != 'jobid'}
+        with self.client.start_session() as session:
+            self._reconcile_state.update_one(
+                {'jobid': state['jobid']},
+                {'$set': set_fields},
+                upsert=True,
+                session=session)
+
+    def delete_reconcile_state(self, jobid):
+        with self.client.start_session() as session:
+            self._reconcile_state.delete_one({'jobid': jobid}, session=session)
+
+    def set_node_timezone(self, nodeid, timezone_name):
+        """Store the IANA zone the node's cron runs in, as reported on its heartbeat."""
+        with self.client.start_session() as session:
+            self._nodes.update_one({'nodeid': nodeid}, {'$set': {'timezone': timezone_name}},
+                                   session=session)
+
+    def get_node_profile(self, nodeid):
+        """Last heartbeat and cron timezone of a node. Empty dict if the node is unknown."""
+        with self.client.start_session() as session:
+            node = self._nodes.find_one({'nodeid': nodeid},
+                                        {'_id': 0, 'last_active': 1, 'timezone': 1},
+                                        session=session)
+            return node or {}
+
+
     def register_node(self, node: LeotestNode):
         """register a node"""
         document = node.document()

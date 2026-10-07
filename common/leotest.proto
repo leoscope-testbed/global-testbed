@@ -70,8 +70,11 @@ service LeotestOrchestrator {
             returns (message_delete_jobs_by_nodeid_response) {} 
 
     rpc update_run(message_update_run)
-            returns (message_update_run_response) {} 
-    
+            returns (message_update_run_response) {}
+
+    rpc report_job_event(message_report_job_event)
+            returns (message_report_job_event_response) {}
+
     rpc get_runs(message_get_runs)
             returns (message_get_runs_response) {}
     
@@ -161,6 +164,7 @@ message message_get_global_config_response {
 /* Heartbeat messages */
 message message_heartbeat {
     string nodeid = 1; 
+    optional string timezone = 2;
 }
 
 message message_heartbeat_response {
@@ -344,7 +348,8 @@ message message_schedule_job {
 
 message message_schedule_job_response {
     response_state state = 1;
-    string message = 2; 
+    string message = 2;
+    repeated string warnings = 3;
 }
 
 message message_get_job_by_id {
@@ -432,17 +437,46 @@ message run_instance {
     string end_time = 6;
     string last_updated = 7; 
     string blob_url = 8;  
-    string status = 9; 
-    string status_message = 10; 
+    string status = 9;
+    string status_message = 10;
+    optional string stage = 11;
+    optional string reason_code = 12;
+    optional int32 exit_code = 13;
+    optional string trigger_verdict = 14;
 }
 
 message message_update_run {
-    run_instance run = 1; 
+    run_instance run = 1;
 }
 
 message message_update_run_response {
     response_state state = 1;
-    string message = 2; 
+    string message = 2;
+}
+
+/* job event timeline: one row per observed step of a scheduled job or occurrence */
+message job_event {
+    string event_id = 1;
+    string jobid = 2;
+    string runid = 3;
+    string nodeid = 4;
+    string userid = 5;
+    string occurrence = 6;
+    string stage = 7;
+    string outcome = 8;
+    string reason_code = 9;
+    string message = 10;
+    string source = 11;
+    string timestamp = 12;
+}
+
+message message_report_job_event {
+    job_event event = 1;
+}
+
+message message_report_job_event_response {
+    response_state state = 1;
+    string message = 2;
 }
 
 message message_time_range {
