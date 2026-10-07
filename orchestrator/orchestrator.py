@@ -2045,7 +2045,15 @@ class LeotestOrchestrator:
         self.grpc_hostname = grpc_hostname 
         self.grpc_port = grpc_port
 
-    
+    def _start_reconciler(self):
+        """Start the job reconciler against this orchestrator's own datastore.
+
+        Split out from :meth:`start_grpc_service` so the wiring — which datastore
+        the reconciler gets — can be tested without standing up TLS and a socket.
+        """
+        if cfg.RECONCILER_ENABLED:
+            JobReconciler(self.grpc_service_instance.db).start()
+
     def start_grpc_service(self):
         """Bootstrap the gRPC TLS service of the orchestrator."""
         cfg.log_config_summary()
@@ -2075,8 +2083,7 @@ class LeotestOrchestrator:
         listen_addr = f'[::]:{self.grpc_port}'
         grpc_service.add_secure_port(listen_addr, server_credentials)
         grpc_service.start()
-        if cfg.RECONCILER_ENABLED:
-            JobReconciler(self.db).start()
+        self._start_reconciler()
         log.info("[orchestrator] gRPC server started and listening on %s (TLS)", listen_addr)
         grpc_service.wait_for_termination()
     
