@@ -282,7 +282,8 @@ def schedule_warnings(config_yaml, node_last_active, now, stale_secs, node_timez
         warnings.append((
             REASON_NODE_OFFLINE_AT_SCHEDULE,
             "The node has not reported recently. Each occurrence that the node does not "
-            "report within the grace period will be recorded as MISSED in the runs tab."))
+            "report on by its scheduled end plus the grace period will be recorded as "
+            "MISSED in the runs tab."))
 
     if not node_timezone:
         warnings.append((

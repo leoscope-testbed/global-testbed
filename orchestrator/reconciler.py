@@ -7,9 +7,17 @@ heartbeats, so "scheduled but never reported" is decided here. Each pass:
    The snapshot exists because the jobs collection has a TTL index on
    ``expire_at``: a job disappears shortly after its end date, while its last
    occurrences may still be inside the grace period.
-2. For each snapshot, finds the occurrences that are now older than the grace
-   period and have no run starting near them. Each such occurrence becomes a
-   MISSED run row (shown in the runs tab) and a ``RECONCILE`` job event.
+2. For each snapshot, finds the occurrences whose own scheduled duration plus
+   the grace period have elapsed and have no run starting near them. Each such
+   occurrence becomes a MISSED run row (shown in the runs tab) and a
+   ``RECONCILE`` job event.
+
+   The grace period is measured from the occurrence's scheduled *end*
+   (fire time + the job's ``length_secs``), not from its fire time. A real
+   deploy — config fetch, image pull, Azure/blob calls — can easily take
+   longer than a short grace period on its own, well within a normal-length
+   experiment, so judging from the fire time alone would report a merely slow
+   but otherwise fine run as missed.
 
 Every write uses a deterministic id, so overlapping or repeated passes cannot
 create duplicates.
@@ -61,6 +69,7 @@ def snapshot_from_job(doc):
         "nodeid": doc.get("nodeid"),
         "userid": doc.get("userid"),
         "created_at": doc.get("created_at"),
+        "length_secs": doc.get("length_secs") or 0,
     }
 
 
@@ -149,7 +158,10 @@ class JobReconciler:
     def _judge(self, state, present, now, grace):
         jobid = state["jobid"]
         horizon = self._horizon(state, present, now)
-        upper = min(horizon, now - grace)
+        # An occurrence is not due for judgment until its own scheduled duration
+        # has elapsed too, not just the grace period after it fired.
+        length = timedelta(seconds=state.get("length_secs") or 0)
+        upper = min(horizon, now - grace - length)
         lower = max(je.parse_utc(state["cursor"]), now - timedelta(seconds=self.lookback_secs))
 
         if upper > lower:
@@ -204,9 +216,11 @@ class JobReconciler:
         jobid = state["jobid"]
         reason, detail = je.missed_reason(node_last_active, now, self.stale_secs)
         runid = je.occurrence_runid(jobid, occurrence)
+        length_secs = int(state.get("length_secs") or 0)
         message = je.truncate(
-            "No executor report within %ds of the scheduled time (%s). %s."
-            % (self.grace_secs, occurrence.isoformat(), detail))
+            "No executor report within %ds of the experiment's scheduled end "
+            "(fire time %s, length %ds). %s."
+            % (self.grace_secs, occurrence.isoformat(), length_secs, detail))
 
         self.db.insert_run_if_absent({
             "runid": runid,
