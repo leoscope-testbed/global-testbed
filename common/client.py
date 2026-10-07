@@ -125,7 +125,7 @@ class LeotestClient:
                 # use this if you want standard "Authorization" header
                 #call_credentials = grpc.access_token_call_credentials("test_access_token")
 
-                cert_cn = cfg.GRPC_HOSTNAME # or parse it out of the cert data
+                cert_cn = cfg.GRPC_TLS_TARGET_NAME_OVERRIDE # or parse it out of the cert data
                 options = (('grpc.ssl_target_name_override', cert_cn,),)
 
                 composite_credentials = grpc.composite_channel_credentials(credentials, call_credentials)
