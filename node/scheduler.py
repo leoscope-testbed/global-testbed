@@ -271,7 +271,17 @@ class LeotestJobSchedulerAtq(LeotestJobScheduler):
         self.access_token    = access_token
 
     def get_jobid_from_command(self, cmd):
-        return cmd.decode("utf-8").split("#")[1].strip()
+        """jobid of a queued entry, taken from the trailing ``# <jobid>`` marker.
+
+        Returns ``None`` for an entry without the marker (anything not queued by
+        us), so a foreign at entry cannot break the sync.
+        """
+        if isinstance(cmd, bytes):
+            cmd = cmd.decode("utf-8", errors="replace")
+        parts = cmd.split("#")
+        if len(parts) < 2:
+            return None
+        return parts[1].strip()
 
     def get_job_with_id(self, jobid):
         job = None
@@ -290,11 +300,13 @@ class LeotestJobSchedulerAtq(LeotestJobScheduler):
         atq = atd.AtQueue()
         for _job in atq.jobs:
             jobid = self.get_jobid_from_command(_job.command)
-            jobs.append(jobid)
+            if jobid is not None:
+                jobs.append(jobid)
         return jobs
 
     def jobid_in_remote_list(self, jobid, remote_job_list):
-        return any(jobid == job["jobid"] for job in remote_job_list)
+        # remote_job_list holds LeotestJobAtq objects, not dicts.
+        return any(jobid == job.get_jobid() for job in remote_job_list)
 
     def _build_cmd(self, leotest_job):
         cmd = self.executor_path
@@ -339,32 +351,66 @@ class LeotestJobSchedulerAtq(LeotestJobScheduler):
             atd.at("%s # %s" % (cmd, leotest_job.get_jobid()), start_obj)
             log.info("[scheduler][atq][add_job] ATQ entry created jobid=%s", leotest_job.get_jobid())
 
-    def _sync_jobs(self, remote_job_list):
-        log.info("[scheduler][atq][sync] clearing existing ATQ entries")
-        atq = atd.AtQueue()
+    @staticmethod
+    def _entry_matches(at_job, leotest_job):
+        """True when a queued entry already fires at the job's start time.
+
+        ``at`` stores minute resolution, so both sides are compared truncated to
+        the minute; otherwise a start time with seconds would never match and the
+        entry would be requeued on every tick.
+        """
         try:
-            for job in atq.jobs:
-                atd.atrm(job)
+            queued_when = at_job.when
         except Exception:
-            log.exception("[scheduler][atq][sync] error clearing ATQ entries")
+            return False
+        if not isinstance(queued_when, datetime):
+            return False
+        wanted = leotest_job.get_start_time_obj()
+        return (queued_when.replace(second=0, microsecond=0)
+                == wanted.replace(second=0, microsecond=0))
+
+    def _sync_jobs(self, remote_job_list):
+        """Reconcile the at queue with the orchestrator's job list.
+
+        Entries that already match are left alone. The at queue is the only record
+        that a one-shot job is pending, and ``_add_job`` cannot re-add a job whose
+        start time has passed (``atd.at`` rejects past times), so clearing and
+        re-adding every tick would destroy an entry in the seconds between its
+        start time and atd executing it — the job would then never run at all.
+        """
+        remote_by_jobid = {job.get_jobid(): job for job in remote_job_list}
 
         local_jobs = {}
-        atq = atd.AtQueue()
-        for job in atq.jobs:
-            jobid = self.get_jobid_from_command(job.command)
-            if not self.jobid_in_remote_list(jobid, remote_job_list):
-                atd.atrm(job)
-            else:
-                local_jobs[jobid] = job
+        for job in atd.AtQueue().jobs:
+            try:
+                jobid = self.get_jobid_from_command(job.command)
+                if jobid is None:
+                    log.debug("[scheduler][atq][sync] leaving unrecognised at entry id=%s",
+                              job.id)
+                    continue
+                if jobid not in remote_by_jobid:
+                    log.info("[scheduler][atq][sync] removing entry for a job no longer "
+                             "scheduled here: jobid=%s", jobid)
+                    atd.atrm(job)
+                elif not self._entry_matches(job, remote_by_jobid[jobid]):
+                    log.info("[scheduler][atq][sync] start time changed, requeueing jobid=%s",
+                             jobid)
+                    atd.atrm(job)
+                else:
+                    local_jobs[jobid] = job
+            except Exception:
+                log.exception("[scheduler][atq][sync] error reconciling at entry id=%s",
+                              getattr(job, "id", "unknown"))
 
-        log.info("[scheduler][atq][sync] syncing %d remote ATQ jobs", len(remote_job_list))
+        log.info("[scheduler][atq][sync] syncing %d remote ATQ jobs (%d already queued)",
+                 len(remote_job_list), len(local_jobs))
         for job in remote_job_list:
-            jobid = job.jobid
+            jobid = job.get_jobid()
             if jobid not in local_jobs:
                 log.info("[scheduler][atq][sync] adding ATQ job jobid=%s", jobid)
                 self.add_job(job)
             else:
-                log.debug("[scheduler][atq][sync] ATQ job already scheduled jobid=%s", jobid)
+                log.debug("[scheduler][atq][sync] ATQ job already queued jobid=%s", jobid)
         log.info("[scheduler][atq][sync] done")
 
 
