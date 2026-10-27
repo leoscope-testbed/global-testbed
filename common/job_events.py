@@ -14,6 +14,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import yaml
 from croniter import croniter
 
+from common import bandwidth_policy
+
 # ---------------------------------------------------------------------------
 # Stages: the step of the lifecycle a record is about
 # ---------------------------------------------------------------------------
@@ -28,6 +30,10 @@ STAGE_DEPLOY = "DEPLOY"
 STAGE_IMAGE_PULL = "IMAGE_PULL"
 STAGE_CONTAINER = "CONTAINER"
 STAGE_EXECUTE = "EXECUTE"
+# The node's own bandwidth and data-volume policy, sampled while the container
+# runs. A stop at this stage is the node owner's limit being honoured, not a
+# fault in the experiment.
+STAGE_LIMIT = "LIMIT"
 STAGE_FINISH = "FINISH"
 STAGE_RECONCILE = "RECONCILE"
 
@@ -39,6 +45,8 @@ OUTCOME_WARN = "WARN"
 OUTCOME_FAILED = "FAILED"
 OUTCOME_SKIPPED = "SKIPPED"
 OUTCOME_MISSED = "MISSED"
+# The measurement started and was cut short on purpose by the node's policy.
+OUTCOME_STOPPED = "STOPPED"
 
 # ---------------------------------------------------------------------------
 # Reason codes: why an outcome is not OK
@@ -74,6 +82,15 @@ REASON_DISPATCH_FAILED = "DISPATCH_FAILED"
 REASON_DISPATCH_TOO_LATE = "DISPATCH_TOO_LATE"
 REASON_EXECUTOR_NO_REPORT = "EXECUTOR_NO_REPORT"
 REASON_EXECUTOR_CRASHED = "EXECUTOR_CRASHED"
+# Node-policy stops, defined with the policy rules in common.bandwidth_policy
+# and re-exported here so that every reason code has one import site.
+REASON_BANDWIDTH_RATE_EXCEEDED = bandwidth_policy.REASON_BANDWIDTH_RATE_EXCEEDED
+REASON_BANDWIDTH_VOLUME_EXCEEDED = bandwidth_policy.REASON_BANDWIDTH_VOLUME_EXCEEDED
+REASON_ARTIFACT_SIZE_EXCEEDED = bandwidth_policy.REASON_ARTIFACT_SIZE_EXCEEDED
+
+LIMIT_REASONS = (REASON_BANDWIDTH_RATE_EXCEEDED,
+                 REASON_BANDWIDTH_VOLUME_EXCEEDED,
+                 REASON_ARTIFACT_SIZE_EXCEEDED)
 
 # ---------------------------------------------------------------------------
 # Trigger verdicts recorded by the node and reported in the run
@@ -88,6 +105,10 @@ STATUS_FAILED = "FAILED"
 STATUS_SKIPPED = "SKIPPED"
 STATUS_MISSED = "MISSED"
 STATUS_COMPLETE = "COMPLETE"
+# A run the node stopped at its owner's bandwidth or data limit. Terminal, and
+# deliberately not FAILED: whoever scheduled it has nothing to fix in their
+# experiment, and the partial results up to the stop are still uploaded.
+STATUS_STOPPED = "STOPPED"
 
 # A reference in the Docker grammar: lowercase path components, optional tag
 # and optional digest. Deliberately conservative; a rejected reference is only
@@ -175,12 +196,13 @@ def default_reason(stage, message=""):
     return REASON_EXECUTE_EXCEPTION
 
 
-def classify_container_exit(exit_code, ttl_stopped, running=False):
+def classify_container_exit(exit_code, ttl_stopped, running=False, limit_stopped=False):
     """Decide whether a finished experiment container is a failure.
 
     Returns ``None`` when the container finished acceptably, otherwise the
     reason code. A container that exits non-zero because the node stopped it
-    at its TTL is an expected end of the run, not a failure.
+    at its TTL, or at its owner's bandwidth policy, is an expected end of the
+    run and not a failure of the experiment.
     """
     if running:
         return REASON_CONTAINER_STOP_FAILED
@@ -188,7 +210,7 @@ def classify_container_exit(exit_code, ttl_stopped, running=False):
         return REASON_CONTAINER_STATE_UNKNOWN
     if exit_code == 0:
         return None
-    if ttl_stopped:
+    if ttl_stopped or limit_stopped:
         return None
     return REASON_CONTAINER_EXIT_NONZERO
 

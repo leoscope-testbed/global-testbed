@@ -26,10 +26,12 @@ from pymemcache.client.base import Client as memcache_client
 
 from common.client import LeotestClient
 from common.azure import download_file
+from common.bandwidth_policy import normalise as normalise_bandwidth_policy
 from common.utils import route, time_now, TerminalGrpcDataCsv, make_archive, StorageDirectoryClient
 from common import config as cfg
 from common import job_events as je
 from common import run_report
+from node.bandwidth_guard import BandwidthGuard, DockerStatsReader
 
 import common.leotest_pb2_grpc as pb2_grpc
 import common.leotest_pb2 as pb2
@@ -100,6 +102,10 @@ class LeotestExecutor:
         self.trigger_verdict = None
         self.trigger_detail = ""
         self.container_ttl_stopped = False
+        # Set when the node's own bandwidth policy ended the measurement, as
+        # ``(reason_code, message)``. A stop here is not a failure: the node
+        # owner's limit was honoured and the partial results still upload.
+        self.limit_breach = None
 
         grpc_path = cfg.STARLINK_GRPC_TOOLS_PATH
         grpc_csv_file = "%s/grpc.csv" % self.params["workdir"]
@@ -179,6 +185,26 @@ class LeotestExecutor:
     def _success_message(self):
         note = self._trigger_note()
         return "Done executing the job." + (" (%s)" % note if note else "")
+
+    def _limit_status_message(self):
+        """What whoever scheduled the run reads when the node stopped it.
+
+        It says who stopped it and why, because the experiment itself is fine
+        and the next thing that person would otherwise do is debug their image.
+        """
+        return je.truncate(
+            "Stopped by node %s at its owner's bandwidth policy: %s. The results "
+            "collected up to the stop were uploaded."
+            % (self.client_params["nodeid"], self.limit_breach[1]))
+
+    def _record_limit_stop(self, reason_code, message):
+        """Remember a policy stop and record it on the job's timeline."""
+        if self.limit_breach is not None:
+            return
+        self.limit_breach = (reason_code, je.truncate(message))
+        self.log.warning("[executor][limit] measurement stopped by node policy: "
+                         "reason=%s message=%s", reason_code, message)
+        self._report_job_event(je.STAGE_LIMIT, je.OUTCOME_STOPPED, reason_code, message)
 
     def _preparing_message(self):
         return "Preparing run"
@@ -625,10 +651,15 @@ class LeotestExecutor:
         self._finish_job()
 
         end_time = str(time_now())
-        if self.failure is None:
-            outcome = {"status": "COMPLETE", "status_message": self._success_message()}
-        else:
+        if self.failure is not None:
             outcome = {"status": je.STATUS_FAILED, "status_message": self._failure_status_message()}
+        elif self.limit_breach is not None:
+            outcome = {"status": je.STATUS_STOPPED,
+                       "status_message": self._limit_status_message(),
+                       "stage": je.STAGE_LIMIT,
+                       "reason_code": self.limit_breach[0]}
+        else:
+            outcome = {"status": "COMPLETE", "status_message": self._success_message()}
         self.log.info("[executor][finish] marking run %s runid=%s jobid=%s end_time=%s",
                       outcome["status"], runid, jobid, end_time)
         self.params["client"].update_run(
@@ -680,6 +711,17 @@ class LeotestExecutorDocker(LeotestExecutor):
             self.container_name += "_server"
         self.log.info("[executor][docker] container_name=%s", self.container_name)
         self.container_start_error = None
+
+        # The node owner's bandwidth and data-volume policy, sampled once a
+        # second while the container runs. Built here and started once the
+        # container is actually up, so the first sample is a real baseline.
+        self.bandwidth_guard = BandwidthGuard(
+            policy=self.params.get("bandwidth_policy"),
+            stats_reader=DockerStatsReader(self.docker_client, self.container_name, self.log),
+            stop_container=self._stop_container_for_limit,
+            log=self.log,
+            artifact_dir=self.params["workdir"],
+            csv_path=os.path.join(self.params["workdir"], "bandwidth.csv"))
 
     def _deploy_job(self):
         """Pull image; remove any stale instance from a previous failed run."""
@@ -780,6 +822,9 @@ class LeotestExecutorDocker(LeotestExecutor):
             self.log.error("[executor][docker][execute] container failed to start within %ds "
                            "runid=%s name=%s", ttl_secs, runid, self.container_name)
 
+        if container_started:
+            self.bandwidth_guard.start()
+
         # Subtract start-up latency from the remaining TTL so we honour strict boundaries
         remaining_ttl = max(0, ttl_secs - delta)
         self.log.info("[executor][docker][execute] startup_delta=%ds remaining_ttl=%ds runid=%s",
@@ -790,6 +835,12 @@ class LeotestExecutorDocker(LeotestExecutor):
         delta = 0
         last_log_tick = -1
         while _container_is_running(self.docker_client, self.container_name) and delta <= remaining_ttl:
+            if self.bandwidth_guard.breached():
+                # The guard has already stopped the container; waiting out the
+                # rest of the TTL here would only delay the run's own cleanup.
+                self.log.info("[executor][docker][execute] node bandwidth policy ended the "
+                              "measurement at elapsed=%ds runid=%s", delta, runid)
+                break
             sleep(1)
             delta = int((time_now() - time_start).total_seconds())
             tick = delta // 10
@@ -799,8 +850,12 @@ class LeotestExecutorDocker(LeotestExecutor):
                               delta, remaining_ttl, runid, self.container_name)
                 last_log_tick = tick
 
+        breach = self.bandwidth_guard.stop()
+        if breach is not None:
+            self._record_limit_stop(*breach)
+
         if _container_is_running(self.docker_client, self.container_name):
-            self.container_ttl_stopped = True
+            self.container_ttl_stopped = self.limit_breach is None
             self.log.warning("[executor][docker][execute] TTL exceeded (%ds) — stopping container "
                              "runid=%s name=%s", remaining_ttl, runid, self.container_name)
             try:
@@ -823,6 +878,21 @@ class LeotestExecutorDocker(LeotestExecutor):
         if thread.is_alive():
             self.log.warning("[executor][docker][execute] log-streaming thread still alive "
                              "after 30s join name=%s", self.container_name)
+
+    def _stop_container_for_limit(self):
+        """Stop the experiment container because the node's policy says to.
+
+        Called from the guard thread. ``stop`` rather than ``kill`` so the
+        experiment gets its SIGTERM and can flush whatever it has collected --
+        the point is to end the measurement, not to lose it.
+        """
+        try:
+            self.docker_client.containers.get(self.container_name).stop()
+            self.log.info("[executor][limit] container stopped by the node's bandwidth "
+                          "policy name=%s", self.container_name)
+        except docker.errors.NotFound:
+            self.log.info("[executor][limit] container already gone when the policy "
+                          "stop fired name=%s", self.container_name)
 
     def _execute_job_loop(self):
         """Launch container (blocking) and stream its stdout/stderr to the executor log."""
@@ -967,9 +1037,13 @@ class LeotestExecutorDocker(LeotestExecutor):
 
         exit_code = state.get("ExitCode")
         running = bool(state.get("Running"))
-        reason = je.classify_container_exit(exit_code, self.container_ttl_stopped, running)
+        reason = je.classify_container_exit(exit_code, self.container_ttl_stopped, running,
+                                            limit_stopped=self.limit_breach is not None)
         if reason is None:
-            if self.container_ttl_stopped and exit_code not in (None, 0):
+            if self.limit_breach is not None and exit_code not in (None, 0):
+                self.log.info("[executor][docker][check] container stopped by the node's "
+                              "bandwidth policy with exit=%s (expected)", exit_code)
+            elif self.container_ttl_stopped and exit_code not in (None, 0):
                 self.log.info("[executor][docker][check] container stopped by TTL with exit=%s (expected)",
                               exit_code)
             return
@@ -985,6 +1059,7 @@ class LeotestExecutorDocker(LeotestExecutor):
     def _report_meta(self):
         image = ((self.params.get("experiment") or {}).get("docker") or {}).get("image")
         meta = [("Docker image", image), ("Container", self.container_name)]
+        meta += self.bandwidth_guard.summary()
         if self.container_start_error:
             meta.append(("Container start error", self.container_start_error))
         try:
@@ -1018,11 +1093,21 @@ class LeotestExecutorDocker(LeotestExecutor):
                      % self.container_name)]
         except Exception as exc:
             return [("Container output", "(could not be read from Docker: %s)" % exc)]
-        return [("Container output (last 2000 lines)",
-                 logs.decode("utf-8", errors="replace") if logs else "(empty)")]
+        sections = [("Container output (last 2000 lines)",
+                     logs.decode("utf-8", errors="replace") if logs else "(empty)")]
+        if self.limit_breach is not None:
+            sections.insert(0, ("Why this measurement was stopped", (
+                "Node %s stopped the measurement to stay inside the limits its owner set "
+                "for this node.\n\n%s\n\nThe per-second trace the decision was made from is "
+                "in bandwidth.csv, next to this report. The data collected up to the stop "
+                "was uploaded; nothing is wrong with the experiment itself. To measure past "
+                "this point, pick a node with a higher allowance, or shorten the run."
+                % (self.client_params["nodeid"], self.limit_breach[1]))))
+        return sections
 
     def _finish_job(self):
         """Stop and remove the experiment container."""
+        self.bandwidth_guard.stop()
         try:
             container = self.docker_client.containers.get(self.container_name)
             self.log.info("[executor][docker][finish] stopping container name=%s status=%s",
@@ -1574,6 +1659,31 @@ def main():
         raise
 
     # ------------------------------------------------------------------
+    # The node owner's bandwidth and data-volume policy
+    # ------------------------------------------------------------------
+    # Read once, here, rather than in the guard: a run must not be stopped
+    # because the orchestrator was briefly unreachable mid-measurement. If it
+    # cannot be read at all the run goes ahead unlimited, which is what the
+    # node did before this policy existed -- and it is said out loud in the
+    # log and the run report rather than silently assumed.
+    bandwidth_policy = None
+    try:
+        res = MessageToDict(client.get_nodes(nodeid=nodeid), including_default_value_fields=True)
+        nodes = res.get("nodes", [])
+        if nodes:
+            bandwidth_policy = nodes[0].get("bandwidthLimitsJson") or "[]"
+            policy = normalise_bandwidth_policy(bandwidth_policy)
+            log_run.info("[executor] node bandwidth policy: enforcement=%s windows=%d caps=%s",
+                         policy["enforcement"]["enabled"], len(policy["windows"]),
+                         {k: v for k, v in policy["run_caps"].items() if v})
+        else:
+            log_run.warning("[executor] nodeid=%s is not in the node registry; the run is "
+                            "not bandwidth limited", nodeid)
+    except Exception:
+        log_run.exception("[executor] could not read the bandwidth policy for nodeid=%s "
+                          "— the run is not bandwidth limited", nodeid)
+
+    # ------------------------------------------------------------------
     # Execute
     # ------------------------------------------------------------------
     params = {
@@ -1610,6 +1720,7 @@ def main():
         "overhead":     overhead,
         "job_type":     job_type,
         "sessionstore": sessionstore,
+        "bandwidth_policy": bandwidth_policy,
     }
 
     log_run.info("[executor] building executor mode=%s", args.mode)

@@ -28,6 +28,7 @@ from common.node import LeotestNode
 from common.trigger import verify_trigger_default
 from common import config as cfg
 from common import job_events as je
+from common import bandwidth_policy as bwp
 from orchestrator.reconciler import JobReconciler
 
 logging.basicConfig(
@@ -595,24 +596,36 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
             userid and userid.strip().lower() == LEOSCOPE_NODE_ADMIN_USERID
         )
 
+    @staticmethod
+    def _same_user(left, right):
+        """Compare two userids. They are email addresses, so case does not count."""
+        return bool(left) and bool(right) and str(left).strip().lower() == str(right).strip().lower()
+
     def _can_manage_node(self, userid, role, nodeid):
+        """Who may change a node: an admin, or that one node's owner.
+
+        Node management has exactly two kinds of caller. An admin manages every
+        node. Everyone else manages the nodes whose ``owner`` is them, and no
+        others -- the check is against the node's own record, so it is the
+        ownership of *this* node that decides, not the caller's role number. A
+        privileged contributor who does not own the node gets nothing, which is
+        the point: before this, any USER_PRIV could pause or re-limit a node
+        belonging to somebody else.
+
+        The one other caller is the node's own agent, which signs in as itself
+        and writes its heartbeat, timezone and public IP through update_node.
+        """
         if role == LeotestUserRoles.ADMIN.value:
             return True
 
         if self._is_leoscope_node_admin(userid):
             return True
 
-        if nodeid == userid and role == LeotestUserRoles.NODE.value:
+        if role == LeotestUserRoles.NODE.value and self._same_user(nodeid, userid):
             return True
 
-        if role not in (
-            LeotestUserRoles.USER_PRIV.value,
-            LeotestUserRoles.NODE_OWNER.value,
-        ):
-            return False
-
         node = self._node_document_for_auth(nodeid)
-        return bool(node and node.get('owner') == userid)
+        return bool(node) and self._same_user(node.get('owner'), userid)
 
     @CheckToken(pb2.message_schedule_job_response, 
                 grpc.StatusCode.UNAUTHENTICATED, 
@@ -1624,13 +1637,30 @@ class LeotestOrchestratorGrpc(pb2_grpc.LeotestOrchestrator):
                 % (nodeid, name, description, last_active, coords, location,
                        provider, public_ip, owner, scheduling_enabled))
 
+        policy_errors = (bwp.validate(bandwidth_limits_json)
+                         if bandwidth_limits_json is not None else [])
+
         if owner is not None and (
             role != LeotestUserRoles.ADMIN.value
             and not self._is_leoscope_node_admin(userid)
         ):
             state = 1
             message = "permission denied: only admins can transfer node ownership"
+        elif policy_errors:
+            # Checked here, not only at the website: the node's own policy is
+            # what stops measurements, and a document that cannot be read would
+            # leave the node either unprotected or stopping every run.
+            state = 1
+            message = "invalid bandwidth policy: %s" % "; ".join(policy_errors)
+            log.warning("[update_node] nodeid=%s rejected bandwidth policy: %s",
+                        nodeid, message)
         elif self._can_manage_node(userid, role, nodeid):
+            if bandwidth_limits_json is not None:
+                # Stored in one canonical shape, so that everything reading it
+                # back -- the website, the node, the next version of this code
+                # -- sees the same document rather than whichever of the
+                # accepted input forms the caller happened to send.
+                bandwidth_limits_json = bwp.to_json(bandwidth_limits_json)
             state, message = self.db.update_node(
                 nodeid=nodeid,
                 name=name,
