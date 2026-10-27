@@ -363,6 +363,9 @@ class LeotestExecutor:
             ("Artifact path", params["remote_path"]),
         ] + self._report_meta()
 
+        if params.get("storage_error"):
+            meta.append(("Blob storage warning", je.truncate(params["storage_error"], 200)))
+
         sections = [("Outcome", outcome)]
         sections += self._report_sections()
         sections += [
@@ -578,7 +581,10 @@ class LeotestExecutor:
             self.log.exception("[executor][finish][upload] FAILED to upload artifact "
                                "runid=%s archive=%s remote=%s container=%s",
                                runid, archive_path, archive_path_remote, container)
-            self._record_failure(je.STAGE_FINISH, je.REASON_ARTIFACT_UPLOAD_FAILED, str(exc))
+            reason = je.classify_storage_error(str(exc)) or je.REASON_ARTIFACT_UPLOAD_FAILED
+            hint = je.storage_hint(reason)
+            self._record_failure(je.STAGE_FINISH, reason,
+                                 "%s %s" % (exc, hint) if hint else str(exc))
 
         # The report goes up separately as well as inside the zip, so a failed
         # run is readable without downloading and unpacking the artifacts.
@@ -596,16 +602,25 @@ class LeotestExecutor:
             **self.client_params)
 
         # --- clean up local files ---
-        self.log.info("[executor][finish] removing local archive %s", archive_path)
-        try:
-            os.remove(archive_path)
-        except Exception:
-            self.log.warning("[executor][finish] could not remove archive %s", archive_path)
-        self.log.info("[executor][finish] removing local workdir %s", workdir)
-        try:
-            shutil.rmtree(workdir)
-        except Exception:
-            self.log.warning("[executor][finish] could not remove workdir %s", workdir)
+        if not blob_url:
+            # Nothing reached storage, so these are the only copy of the run's
+            # results. Deleting them would destroy the measurement over what is
+            # usually a fixable credential problem; they are left for recovery.
+            self.log.error("[executor][finish] nothing could be uploaded for runid=%s — "
+                           "keeping the local archive %s and workdir %s so the results "
+                           "can be recovered once storage works again",
+                           runid, archive_path, workdir)
+        else:
+            self.log.info("[executor][finish] removing local archive %s", archive_path)
+            try:
+                os.remove(archive_path)
+            except Exception:
+                self.log.warning("[executor][finish] could not remove archive %s", archive_path)
+            self.log.info("[executor][finish] removing local workdir %s", workdir)
+            try:
+                shutil.rmtree(workdir)
+            except Exception:
+                self.log.warning("[executor][finish] could not remove workdir %s", workdir)
 
         self._finish_job()
 
@@ -1060,6 +1075,93 @@ def report_pre_run_failure(client, runid, jobid, nodeid, userid, start_time,
         log.exception("[executor] could not report job event runid=%s", runid)
 
 
+def fetch_config_files(client, jobid, connection_string, container,
+                       experiment_config_remote, experiment_args_remote,
+                       experiment_config_dst, experiment_args_dst, log_run):
+    """Put the job's experiment config and args on disk for this run.
+
+    Returns a storage warning string, or ``None`` when blob storage was fine.
+
+    The blob copies of these two files are a convenience, not the source of
+    truth: the orchestrator holds the job's config and serves it over gRPC. So
+    every blob call here is best effort. Blob storage being unusable -- a
+    rotated account key, an expired SAS, the wrong container -- used to fail the
+    run at the CONFIG stage before the experiment was ever deployed, and report
+    it as though the experiment's own config were at fault. Now the run goes
+    ahead, and storage is reported at the FINISH stage, where the artifacts
+    genuinely need it and the reason code says what is wrong.
+
+    Only a config that cannot be obtained from either source raises.
+    """
+    state = {"storage_error": None}
+
+    def try_download(remote, dst, what):
+        """Download a blob if it is there. Returns whether ``dst`` was written."""
+        try:
+            blob = StorageDirectoryClient(connection_string, container)
+        except Exception as exc:
+            state["storage_error"] = str(exc)
+            log_run.warning("[executor][config] blob storage is not usable with the "
+                            "orchestrator's global config (container=%s): %s",
+                            container, exc)
+            return False
+        try:
+            if not blob.check_blob_exists(remote):
+                log_run.info("[executor][config] %s not in blob storage "
+                             "(container=%s blob=%s)", what, container, remote)
+                return False
+            log_run.info("[executor][config] downloading %s from blob: container=%s "
+                         "blob=%s → %s", what, container, remote, dst)
+            download_file(connection_string, container, remote, dst)
+            return True
+        except Exception as exc:
+            state["storage_error"] = str(exc)
+            log_run.warning("[executor][config] could not read %s from blob storage "
+                            "(container=%s blob=%s): %s — falling back to the "
+                            "orchestrator", what, container, remote, exc)
+            return False
+
+    record = {}
+
+    def job_record():
+        """The job as the orchestrator holds it, fetched at most once."""
+        if not record:
+            record.update(MessageToDict(client.get_job_by_id(jobid)))
+        return record
+
+    # --- experiment-config.yaml ---
+    if not try_download(experiment_config_remote, experiment_config_dst, "experiment-config"):
+        log_run.info("[executor][config] fetching experiment-config from the "
+                     "orchestrator for jobid=%s → %s", jobid, experiment_config_dst)
+        try:
+            exp_config_yaml = job_record().get("config", "")
+            if not str(exp_config_yaml).strip():
+                raise ValueError(
+                    "the orchestrator holds no experiment config for job %s" % jobid)
+            with open(experiment_config_dst, "w") as handle:
+                handle.write(exp_config_yaml)
+            log_run.info("[executor][config] experiment-config written to %s (%d bytes)",
+                         experiment_config_dst, len(exp_config_yaml))
+        except Exception:
+            log_run.exception("[executor][config] FAILED to fetch experiment-config for "
+                              "jobid=%s", jobid)
+            raise
+
+    # --- experiment-args.json ---
+    if not try_download(experiment_args_remote, experiment_args_dst, "experiment-args"):
+        log_run.info("[executor][config] writing experiment-args from the orchestrator's "
+                     "job record for jobid=%s → %s", jobid, experiment_args_dst)
+        # BUG FIX: the 'config' key check belongs on the job record (dict), not on
+        # exp_config_yaml (string). Previously: `if 'config' in exp_config:` where
+        # exp_config was the YAML string -- always True, since it searched substrings.
+        args_to_dump = {k: v for k, v in job_record().items() if k != "config"}
+        with open(experiment_args_dst, "w") as handle:
+            json.dump(args_to_dump, handle, indent=2)
+        log_run.info("[executor][config] experiment-args written to %s", experiment_args_dst)
+
+    return state["storage_error"]
+
+
 def build_arg_parser():
     """The executor's command line.
 
@@ -1401,54 +1503,15 @@ def main():
     executor_config_dst      = os.path.join(workdir, "executor-config.yaml")
     experiment_args_dst      = os.path.join(workdir, "experiment-args.json")
 
-    azclient = StorageDirectoryClient(connection_string_global, container_global)
-    exp_args_from_orch = None
-
     try:
-        # --- experiment-config.yaml ---
-        if azclient.check_blob_exists(experiment_config_remote):
-            log_run.info("[executor][config] downloading experiment-config from blob: "
-                         "container=%s blob=%s → %s",
-                         container_global, experiment_config_remote, experiment_config_dst)
-            download_file(connection_string_global, container_global,
-                          experiment_config_remote, experiment_config_dst)
-        else:
-            log_run.info("[executor][config] experiment-config not in blob — "
-                         "fetching from orchestrator for jobid=%s → %s", jobid, experiment_config_dst)
-            try:
-                res = client.get_job_by_id(jobid)
-                exp_args_from_orch = MessageToDict(res)
-                exp_config_yaml = exp_args_from_orch.get("config", "")
-                with open(experiment_config_dst, "w") as f:
-                    f.write(exp_config_yaml)
-                log_run.info("[executor][config] experiment-config written to %s (%d bytes)",
-                             experiment_config_dst, len(exp_config_yaml))
-            except Exception:
-                log_run.exception("[executor][config] FAILED to fetch experiment-config for jobid=%s",
-                                  jobid)
-                raise
-
-        # --- experiment-args.json ---
-        if azclient.check_blob_exists(experiment_args_remote):
-            log_run.info("[executor][config] downloading experiment-args from blob: "
-                         "container=%s blob=%s → %s",
-                         container_global, experiment_args_remote, experiment_args_dst)
-            download_file(connection_string_global, container_global,
-                          experiment_args_remote, experiment_args_dst)
-        else:
-            log_run.info("[executor][config] experiment-args not in blob — "
-                         "fetching from orchestrator for jobid=%s → %s", jobid, experiment_args_dst)
-            if not exp_args_from_orch:
-                res = client.get_job_by_id(jobid)
-                exp_args_from_orch = MessageToDict(res)
-
-            # BUG FIX: 'config' key check should be on exp_args_from_orch (dict), not
-            # exp_config_yaml (string). Previously: `if 'config' in exp_config:` where
-            # exp_config was the YAML string — always True since it searched substrings.
-            args_to_dump = {k: v for k, v in exp_args_from_orch.items() if k != "config"}
-            with open(experiment_args_dst, "w") as f:
-                json.dump(args_to_dump, f, indent=2)
-            log_run.info("[executor][config] experiment-args written to %s", experiment_args_dst)
+        storage_error = fetch_config_files(
+            client=client, jobid=jobid,
+            connection_string=connection_string_global, container=container_global,
+            experiment_config_remote=experiment_config_remote,
+            experiment_args_remote=experiment_args_remote,
+            experiment_config_dst=experiment_config_dst,
+            experiment_args_dst=experiment_args_dst,
+            log_run=log_run)
 
         # --- executor-config.yaml ---
         log_run.info("[executor][config] copying executor-config: %s → %s",
@@ -1479,12 +1542,25 @@ def main():
         log_run.info("[executor][config] executor-config sections: %s",
                      list(executor_config_dict.keys()) if executor_config_dict else "EMPTY")
 
-        # Experiment-specific Azure credentials override the global fallback
-        cloud_cfg = experiment_config_dict.get("cloud_config", {})
-        connection_string = cloud_cfg.get("connection_string", connection_string_global)
-        container        = cloud_cfg.get("container", container_global)
-        log_run.info("[executor][config] azure: container=%s (source=%s)",
-                     container, "experiment-config" if cloud_cfg else "global-config")
+        # Experiment-specific Azure credentials override the global fallback.
+        # A present-but-empty value falls back rather than overriding with "":
+        # the website writes the cloud_config keys whether or not they are
+        # filled in, and an empty connection string is not a credential.
+        cloud_cfg = experiment_config_dict.get("cloud_config") or {}
+        connection_string = (cloud_cfg.get("connection_string") or "").strip() \
+            or connection_string_global
+        container = (cloud_cfg.get("container") or "").strip() or container_global
+        log_run.info("[executor][config] azure: container=%s connection_string_source=%s "
+                     "container_source=%s",
+                     container,
+                     "experiment-config" if (cloud_cfg.get("connection_string") or "").strip()
+                     else "global-config",
+                     "experiment-config" if (cloud_cfg.get("container") or "").strip()
+                     else "global-config")
+        if not connection_string:
+            log_run.error("[executor][config] no Azure connection string from the "
+                          "experiment's cloud_config or the orchestrator's global config "
+                          "— this run's artifacts cannot be uploaded")
 
     except Exception as exc:
         log_run.exception("[executor][config] FAILED before run start runid=%s jobid=%s", runid, jobid)
@@ -1529,6 +1605,7 @@ def main():
         "executor_log_stderr": executor_log_stderr,
         "log_stdout_path": log_stdout_path,
         "log_stderr_path": log_stderr_path,
+        "storage_error": storage_error,
         "terminate":    terminate,
         "overhead":     overhead,
         "job_type":     job_type,

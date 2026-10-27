@@ -258,8 +258,10 @@ class LeotestAtqDispatcher:
                 del records[key]
                 continue
 
-            log.info("[dispatch] starting executor jobid=%s occurrence=%s lateness=%ds log=%s",
-                     jobid, occurrence.isoformat(), lateness, log_path)
+            log.info("[dispatch] starting executor jobid=%s occurrence=%s lateness=%ds "
+                     "log=%s (path inside this container; on the host it is under "
+                     "whatever is mounted at %s)",
+                     jobid, occurrence.isoformat(), lateness, log_path, self.artifactdir)
             try:
                 pid = self._spawn(argv, self.workdir, log_path)
             except Exception as exc:
@@ -480,7 +482,9 @@ class LeotestAtqDispatcher:
              ("Started late by (s)", record.get("lateness_secs")),
              ("Reason code", reason),
              ("Executor pid", record.get("pid")),
-             ("Executor log", log_path)],
+             # The path as the node container sees it. On the host it is the
+             # same path under whatever is mounted at the artifact directory.
+             ("Executor log (in the node container)", log_path)],
             [("What happened", "This occurrence produced no run: %s.\n%s" % (headline, detail)),
              ("Executor stdout and stderr", captured)])
 

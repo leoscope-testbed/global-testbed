@@ -58,6 +58,11 @@ REASON_CONTAINER_STOP_FAILED = "CONTAINER_STOP_FAILED"
 REASON_EXECUTE_EXCEPTION = "EXECUTE_EXCEPTION"
 REASON_FINISH_FAILED = "FINISH_FAILED"
 REASON_ARTIFACT_UPLOAD_FAILED = "ARTIFACT_UPLOAD_FAILED"
+# Blob storage problems, separated from "the upload failed" because they are the
+# operator's to fix, not the experiment's: the credentials in the orchestrator's
+# global config, or in the experiment's own cloud_config, are being rejected.
+REASON_STORAGE_AUTH_FAILED = "STORAGE_AUTH_FAILED"
+REASON_STORAGE_NOT_FOUND = "STORAGE_NOT_FOUND"
 REASON_TRIGGER_NOT_MET = "TRIGGER_NOT_MET"
 REASON_NODE_OFFLINE = "NODE_OFFLINE"
 REASON_NODE_OFFLINE_AT_SCHEDULE = "NODE_OFFLINE_AT_SCHEDULE"
@@ -121,6 +126,38 @@ def classify_pull_error(message):
     if "unauthorized" in text or "denied" in text or "authentication required" in text:
         return REASON_IMAGE_PULL_DENIED
     return REASON_IMAGE_PULL_FAILED
+
+
+def classify_storage_error(message):
+    """Reason code for a blob-storage error, or ``None`` if it is not recognised.
+
+    Storage problems are reported apart from the experiment's own failures. A
+    rotated account key makes every run on every node fail identically, and
+    calling that "the config failed" sends whoever scheduled the experiment
+    looking at their own config instead of at the credentials.
+    """
+    text = (message or "").lower()
+    if ("authenticationfailed" in text or "authorizationfailure" in text
+            or "authorization header" in text or "invalid credentials" in text
+            or "signature" in text):
+        return REASON_STORAGE_AUTH_FAILED
+    if "containernotfound" in text or "specified container does not exist" in text:
+        return REASON_STORAGE_NOT_FOUND
+    return None
+
+
+def storage_hint(reason_code):
+    """What an operator should check for a storage reason code. May be empty."""
+    if reason_code == REASON_STORAGE_AUTH_FAILED:
+        return ("Blob storage rejected the credentials. Check the connectionString in "
+                "the orchestrator's global config, and the experiment's own "
+                "cloud_config if it sets one: an account key that has been rotated, "
+                "or a SAS token that has expired, fails exactly like this.")
+    if reason_code == REASON_STORAGE_NOT_FOUND:
+        return ("Blob storage accepted the credentials but not the container. Check the "
+                "container name in the orchestrator's global config and in the "
+                "experiment's cloud_config.")
+    return ""
 
 
 def default_reason(stage, message=""):
