@@ -40,6 +40,7 @@ enforcing without its owner asking would start stopping runs on their behalf.
 import json
 import os
 import re
+from datetime import datetime, timedelta
 
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
@@ -397,10 +398,15 @@ def is_enforced(policy):
 # human-readable descriptions, shared by the website and the run report
 # ---------------------------------------------------------------------------
 def format_bytes(value):
+    """Bytes in the largest unit that keeps the number readable.
+
+    The weekly figures a node's policy adds up to reach terabytes, so the scale
+    runs that far: "%.3g" of 4.5e12 bytes in GB would print as "4.54e+03 GB".
+    """
     if value is None:
         return "unlimited"
     value = float(value)
-    for unit, scale in (("GB", 1e9), ("MB", 1e6), ("kB", 1e3)):
+    for unit, scale in (("PB", 1e15), ("TB", 1e12), ("GB", 1e9), ("MB", 1e6), ("kB", 1e3)):
         if value >= scale:
             return "%.3g %s" % (value / scale, unit)
     return "%d B" % int(value)
@@ -484,6 +490,141 @@ def summarise(policy):
     if caps:
         counts.append("%d per-run cap%s" % (len(caps), "" if len(caps) == 1 else "s"))
     return "Enforced: " + ", ".join(counts)
+
+
+# ---------------------------------------------------------------------------
+# what a node has dedicated to LEOScope
+# ---------------------------------------------------------------------------
+# A Monday at midnight. Used only to walk one whole week of slots, so the
+# weekday arithmetic in window_matches lines up with the day names.
+_WEEK_START = datetime(2024, 1, 1)
+_SLOT_MINUTES = 15
+_SLOTS_PER_WEEK = 7 * 24 * 60 // _SLOT_MINUTES
+
+
+def contribution(policy):
+    """How much of this node's connection its owner has dedicated to LEOScope.
+
+    This is the *offer*, not the usage: the ceiling the policy allows. It is
+    what a node owner wants to see when they ask what they are contributing,
+    and what a user comparing nodes wants to see before scheduling.
+
+    The week is walked in 15-minute slots, each resolved through the same
+    :func:`active_window` the node uses, so overlapping windows, overnight
+    windows and the fallback rates are all counted exactly as they will be
+    applied rather than re-derived by a second set of rules.
+
+    ``weekly_bytes`` is ``None`` when any part of the week has no rate cap at
+    all: the honest answer there is "unmetered", not a number invented by
+    treating an uncapped hour as zero.
+
+    :return: a mapping with ``peak_download_mbps``, ``peak_upload_mbps``,
+        ``limited_hours_per_week``, ``unlimited_hours_per_week``,
+        ``weekly_bytes``, ``metered``, ``per_run_total_bytes`` and a
+        ready-to-show ``headline``.
+    """
+    policy = normalise(policy)
+    slot_seconds = _SLOT_MINUTES * 60
+
+    peak_download = peak_upload = 0.0
+    unlimited_slots = 0
+    limited_slots = 0
+    weekly_bits = 0.0
+    metered = True
+
+    for index in range(_SLOTS_PER_WEEK):
+        moment = _WEEK_START + timedelta(minutes=index * _SLOT_MINUTES)
+        window = active_window(policy, moment)
+        source = window or policy["default_limits"]
+        download, upload = source.get("download_mbps"), source.get("upload_mbps")
+
+        if download is None and upload is None:
+            unlimited_slots += 1
+            metered = False
+            continue
+
+        limited_slots += 1
+        # One direction capped and the other not still leaves the week
+        # unmetered overall, but the capped direction is counted: an owner who
+        # caps only their uplink has dedicated a real, known amount of it.
+        if download is None or upload is None:
+            metered = False
+        peak_download = max(peak_download, download or 0.0)
+        peak_upload = max(peak_upload, upload or 0.0)
+        weekly_bits += ((download or 0.0) + (upload or 0.0)) * BITS_PER_MBIT * slot_seconds
+
+    hours = lambda slots: round(slots * _SLOT_MINUTES / 60.0, 2)
+    caps = policy["run_caps"]
+    per_run_total = caps.get("max_total_mb")
+
+    result = {
+        "peak_download_mbps": peak_download or None,
+        "peak_upload_mbps": peak_upload or None,
+        "limited_hours_per_week": hours(limited_slots),
+        "unlimited_hours_per_week": hours(unlimited_slots),
+        "weekly_bytes": int(weekly_bits / 8) if metered else None,
+        "metered": metered,
+        "per_run_total_bytes": int(per_run_total * BYTES_PER_MB) if per_run_total else None,
+        "per_run_artifact_bytes": (int(caps["max_artifact_mb"] * BYTES_PER_MB)
+                                   if caps.get("max_artifact_mb") else None),
+    }
+    result["headline"] = _contribution_headline(result)
+    return result
+
+
+def _contribution_headline(figures):
+    """One line for a card: the rate offered and the volume it adds up to."""
+    rates = []
+    if figures["peak_download_mbps"]:
+        rates.append("%s down" % format_rate(figures["peak_download_mbps"] * BITS_PER_MBIT))
+    if figures["peak_upload_mbps"]:
+        rates.append("%s up" % format_rate(figures["peak_upload_mbps"] * BITS_PER_MBIT))
+
+    if not rates:
+        return "Unmetered: no rate limit set"
+
+    rate_text = "Up to " + " / ".join(rates)
+    if figures["weekly_bytes"] is not None:
+        return "%s, about %s a week" % (rate_text, format_bytes(figures["weekly_bytes"]))
+    if figures["limited_hours_per_week"]:
+        return "%s for %g h a week, unmetered the rest of the time" % (
+            rate_text, figures["limited_hours_per_week"])
+    return rate_text
+
+
+def aggregate_contribution(policies):
+    """Add up what a set of nodes has dedicated, for a fleet-level summary.
+
+    Nodes with no rate cap cannot be added to a weekly total, so they are
+    counted separately and reported as unmetered rather than quietly left out
+    of a number that would then read as the whole fleet's contribution.
+    """
+    totals = {
+        "nodes": 0,
+        "metered_nodes": 0,
+        "unmetered_nodes": 0,
+        "peak_download_mbps": 0.0,
+        "peak_upload_mbps": 0.0,
+        "weekly_bytes": 0,
+        "limited_hours_per_week": 0.0,
+    }
+
+    for policy in policies:
+        figures = contribution(policy)
+        totals["nodes"] += 1
+        totals["peak_download_mbps"] += figures["peak_download_mbps"] or 0.0
+        totals["peak_upload_mbps"] += figures["peak_upload_mbps"] or 0.0
+        totals["limited_hours_per_week"] += figures["limited_hours_per_week"]
+        if figures["weekly_bytes"] is None:
+            totals["unmetered_nodes"] += 1
+        else:
+            totals["metered_nodes"] += 1
+            totals["weekly_bytes"] += figures["weekly_bytes"]
+
+    totals["peak_download_mbps"] = round(totals["peak_download_mbps"], 3) or None
+    totals["peak_upload_mbps"] = round(totals["peak_upload_mbps"], 3) or None
+    totals["limited_hours_per_week"] = round(totals["limited_hours_per_week"], 2)
+    return totals
 
 
 # ---------------------------------------------------------------------------
