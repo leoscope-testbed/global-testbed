@@ -12,12 +12,19 @@ heartbeats, so "scheduled but never reported" is decided here. Each pass:
    occurrence becomes a MISSED run row (shown in the runs tab) and a
    ``RECONCILE`` job event.
 
-   The grace period is measured from the occurrence's scheduled *end*
-   (fire time + the job's ``length_secs``), not from its fire time. A real
-   deploy — config fetch, image pull, Azure/blob calls — can easily take
-   longer than a short grace period on its own, well within a normal-length
-   experiment, so judging from the fire time alone would report a merely slow
-   but otherwise fine run as missed.
+   The grace period is measured from the occurrence's scheduled *end*, not
+   from its fire time. A real deploy — config fetch, image pull, Azure/blob
+   calls — can easily take longer than a short grace period on its own, well
+   within a normal-length experiment, so judging from the fire time alone
+   would report a merely slow but otherwise fine run as missed.
+
+   What "scheduled end" means depends on the job type. A cron occurrence ends
+   at its fire time plus the job's ``length_secs``: the next occurrence is a
+   separate occurrence with its own window. A one-shot (atq) job instead owns
+   the whole span the user asked for, up to its ``end_date`` — the
+   orchestrator may move it anywhere inside that span, and the node may start
+   it late — so it is judged from ``end_date``, which is also the time the
+   person who scheduled it expects results by.
 
 Every write uses a deterministic id, so overlapping or repeated passes cannot
 create duplicates.
@@ -155,13 +162,33 @@ class JobReconciler:
                                        lower, upper, zone_name=zone_name)
         return je.atq_occurrences(state["start_date"], lower, upper)
 
+    def _due_offset(self, state):
+        """How long after an occurrence fires its scheduled end falls.
+
+        See the module docstring: a cron occurrence ends after the experiment's
+        own duration, while a one-shot job owns its whole ``[start, end]`` span.
+        """
+        length = timedelta(seconds=state.get("length_secs") or 0)
+        if state.get("type") != "atq":
+            return length
+        try:
+            start = je.parse_utc(state["start_date"])
+            end = je.parse_utc(state["end_date"])
+        except (KeyError, TypeError, ValueError):
+            log.warning("[reconciler] job %s has no readable window; judging it from the "
+                        "experiment's own length", state.get("jobid"))
+            return length
+        # An atq occurrence is its start date, so end - start is the offset from
+        # the occurrence to end_date.
+        return max(length, end - start) if end > start else length
+
     def _judge(self, state, present, now, grace):
         jobid = state["jobid"]
         horizon = self._horizon(state, present, now)
-        # An occurrence is not due for judgment until its own scheduled duration
-        # has elapsed too, not just the grace period after it fired.
-        length = timedelta(seconds=state.get("length_secs") or 0)
-        upper = min(horizon, now - grace - length)
+        # An occurrence is not due for judgment until its scheduled end has
+        # passed too, not just the grace period after it fired.
+        due = self._due_offset(state)
+        upper = min(horizon, now - grace - due)
         lower = max(je.parse_utc(state["cursor"]), now - timedelta(seconds=self.lookback_secs))
 
         if upper > lower:
@@ -179,12 +206,12 @@ class JobReconciler:
                 starts = self.db.get_run_starts(
                     jobid,
                     occurrences[0] - timedelta(seconds=MATCH_SKEW_SECS),
-                    occurrences[-1] + grace)
-                reported = self._reported_occurrences(occurrences, starts, grace)
+                    occurrences[-1] + due + grace)
+                reported = self._reported_occurrences(occurrences, starts, due + grace)
                 for occurrence in occurrences:
                     if occurrence in reported:
                         continue
-                    self._record_missed(state, occurrence, now, node_last_active)
+                    self._record_missed(state, occurrence, now, node_last_active, due)
             state["cursor"] = upper
             self.db.save_reconcile_state(state)
 
@@ -199,8 +226,12 @@ class JobReconciler:
                         "missed-run tracking for its jobs is paused until it does", nodeid)
 
     @staticmethod
-    def _reported_occurrences(occurrences, starts, grace):
-        """Occurrences that have an executor run, each run counted for one occurrence only."""
+    def _reported_occurrences(occurrences, starts, window):
+        """Occurrences that have an executor run, each run counted for one occurrence only.
+
+        ``window`` is how long after an occurrence a run may still start and
+        count as that occurrence's run: its scheduled end plus the grace period.
+        """
         skew = timedelta(seconds=MATCH_SKEW_SECS)
         reported = set()
         for start in starts:
@@ -208,19 +239,22 @@ class JobReconciler:
             if not owners:
                 continue
             owner = max(owners)
-            if start <= owner + grace:
+            if start <= owner + window:
                 reported.add(owner)
         return reported
 
-    def _record_missed(self, state, occurrence, now, node_last_active):
+    def _record_missed(self, state, occurrence, now, node_last_active, due):
         jobid = state["jobid"]
         reason, detail = je.missed_reason(node_last_active, now, self.stale_secs)
         runid = je.occurrence_runid(jobid, occurrence)
         length_secs = int(state.get("length_secs") or 0)
+        scheduled_end = occurrence + due
         message = je.truncate(
-            "No executor report within %ds of the experiment's scheduled end "
-            "(fire time %s, length %ds). %s."
-            % (self.grace_secs, occurrence.isoformat(), length_secs, detail))
+            "No executor report within %ds of the experiment's scheduled end %s "
+            "(fire time %s, length %ds, deadline %s). %s."
+            % (self.grace_secs, scheduled_end.isoformat(), occurrence.isoformat(),
+               length_secs, (scheduled_end + timedelta(seconds=self.grace_secs)).isoformat(),
+               detail))
 
         self.db.insert_run_if_absent({
             "runid": runid,

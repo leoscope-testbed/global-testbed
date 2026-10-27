@@ -29,6 +29,7 @@ from common.azure import download_file
 from common.utils import route, time_now, TerminalGrpcDataCsv, make_archive, StorageDirectoryClient
 from common import config as cfg
 from common import job_events as je
+from common import run_report
 
 import common.leotest_pb2_grpc as pb2_grpc
 import common.leotest_pb2 as pb2
@@ -267,6 +268,10 @@ class LeotestExecutor:
         except Exception as exc:
             self.log.exception("[executor][finalize] finish failed; writing terminal FAILED status")
             self._record_failure(je.STAGE_FINISH, je.REASON_FINISH_FAILED, str(exc))
+            # finish_job owns the normal upload. It did not get that far, so the
+            # report is uploaded here instead: a run that failed while finishing
+            # still has to leave something readable behind.
+            blob_url = self._upload_report_best_effort()
             try:
                 self._finish_job()
             except Exception:
@@ -275,14 +280,101 @@ class LeotestExecutor:
                 self._update_run(status=je.STATUS_FAILED,
                                  status_message=self._failure_status_message(),
                                  end_time=str(time_now()),
-                                 blob_url="",
+                                 blob_url=blob_url,
                                  trigger_verdict=self._verdict_field(),
                                  **self._failure_fields())
             except Exception:
                 self.log.exception("[executor][finalize] could not write terminal FAILED status")
 
+    def _upload_report_best_effort(self):
+        """Build and upload the run report outside the normal finish path.
+
+        Returns a download URL, or ``""``. Never raises: it runs while a failure
+        is already being reported, and must not replace it with its own.
+        """
+        try:
+            for stream in (self.executor_log_stdout, self.executor_log_stderr):
+                if stream and not stream.closed:
+                    stream.flush()
+        except Exception:
+            self.log.exception("[executor][report] could not flush the executor log files")
+        try:
+            report = self._build_run_report()
+        except Exception:
+            self.log.exception("[executor][report] could not build the run report")
+            return ""
+        return run_report.upload_text(
+            self.params["connection_string"], self.params["container"],
+            run_report.report_blob_path(self.params["remote_path"],
+                                        self.client_params["runid"]),
+            report)
+
     def _check_execution(self):
         """Subclass hook: decide whether the execution ended acceptably."""
+
+    # ------------------------------------------------------------------
+    # run report
+    # ------------------------------------------------------------------
+    def _report_meta(self):
+        """Subclass hook — extra ``(label, value)`` pairs for the run report."""
+        return []
+
+    def _report_sections(self):
+        """Subclass hook — extra ``(heading, body)`` sections for the run report."""
+        return []
+
+    def _build_run_report(self):
+        """Render this run's report.
+
+        Called once the executor's own log files are closed, so the tails below
+        are complete. It is written into the workdir -- and so into the uploaded
+        archive -- and uploaded on its own, which is what a failed run links to
+        when there is no archive to link to.
+        """
+        params = self.params
+        failure = self.failure or {}
+        if self.failure is None:
+            outcome = self._success_message()
+            status = je.STATUS_COMPLETE
+        else:
+            outcome = self._failure_status_message()
+            status = je.STATUS_FAILED
+
+        meta = [
+            ("Run", self.client_params["runid"]),
+            ("Job", self.client_params["jobid"]),
+            ("Node", self.client_params["nodeid"]),
+            ("User", self.client_params["userid"]),
+            ("Status", status),
+            ("Stage reached", self.stage),
+            ("Failed at stage", failure.get("stage")),
+            ("Reason code", failure.get("reason_code")),
+            ("Exit code", failure.get("exit_code")),
+            ("Trigger verdict", self.trigger_verdict),
+            ("Job type", params["job_type"]),
+            ("Overhead", params["overhead"]),
+            ("Server mode", params["server_mode"]),
+            ("Scheduled start (UTC)", params["start_date"]),
+            ("Scheduled end (UTC)", params["end_date"]),
+            ("Experiment length (s)", params["length_secs"]),
+            ("Run started (UTC)", params["start_time"]),
+            ("Report written (UTC)", str(time_now())),
+            ("Azure container", params["container"]),
+            ("Artifact path", params["remote_path"]),
+        ] + self._report_meta()
+
+        sections = [("Outcome", outcome)]
+        sections += self._report_sections()
+        sections += [
+            ("Experiment config (experiment-config.yaml)",
+             run_report.tail(os.path.join(params["workdir"], "experiment-config.yaml"))),
+            ("Executor stdout", run_report.tail(params["log_stdout_path"])),
+            ("Executor stderr", run_report.tail(params["log_stderr_path"])),
+        ]
+        return run_report.build_report(
+            "LEOScope run report: %s / %s" % (self.client_params["jobid"],
+                                              self.client_params["runid"]),
+            meta, sections)
 
     # ------------------------------------------------------------------
     # deploy
@@ -410,7 +502,6 @@ class LeotestExecutor:
         self.log.info("[executor][finish] stopping Starlink gRPC telemetry poll")
         self.terminal_grpc_poll.stop()
 
-        # --- archive ---
         workdir = self.params["workdir"]
         archive_path = "%s.zip" % workdir
         if self.params["server_mode"]:
@@ -420,19 +511,16 @@ class LeotestExecutor:
             archive_path_remote = "%s/%s.zip" % (
                 self.params["remote_path"], self.params["runid"])
 
-        self.log.info("[executor][finish] archiving workdir=%s → %s", workdir, archive_path)
-        make_archive(workdir, archive_path)
-        self.log.info("[executor][finish] archive created: %s (%.2f MB)",
-                      archive_path, os.path.getsize(archive_path) / (1024 * 1024))
-
-        # --- close log files before upload so they are included in the archive ---
-        self.log.info("[executor][finish] flushing executor log files before upload")
         self.params["client"].update_run(
             status="FINISHING",
-            status_message="Uploading artifacts to Azure Blob Storage.",
+            status_message="Collecting artifacts.",
             **self.client_params)
 
-        # Redirect logging back to stdout so we keep visibility after log files close
+        # --- close the log files, then archive ---
+        # Order matters: these files are inside the workdir, so archiving before
+        # closing them put a half-flushed copy of the executor's own log into
+        # the zip -- exactly the part that explains a late failure.
+        self.log.info("[executor][finish] flushing and closing executor log files")
         fileh = logging.StreamHandler(stream=sys.__stdout__)
         formatter = logging.Formatter(
             "%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s")
@@ -448,31 +536,57 @@ class LeotestExecutor:
         self.executor_log_stdout.close()
         self.executor_log_stderr.close()
 
+        # --- the run report: the one artifact that is always readable ---
+        report = self._build_run_report()
+        report_path = os.path.join(workdir, "run-report.txt")
+        try:
+            with open(report_path, "w") as handle:
+                handle.write(report)
+            self.log.info("[executor][finish] run report written to %s", report_path)
+        except Exception:
+            self.log.exception("[executor][finish] could not write the run report to %s",
+                               report_path)
+
+        self.log.info("[executor][finish] archiving workdir=%s → %s", workdir, archive_path)
+        make_archive(workdir, archive_path)
+        self.log.info("[executor][finish] archive created: %s (%.2f MB)",
+                      archive_path, os.path.getsize(archive_path) / (1024 * 1024))
+
         # --- upload ---
         connection_string = self.params["connection_string"]
         container = self.params["container"]
+        report_remote = run_report.report_blob_path(self.params["remote_path"],
+                                                    self.client_params["runid"])
         self.log.info("[executor][finish][upload] START container=%s remote_path=%s",
                       container, archive_path_remote)
+        archive_url = ""
         try:
             azclient = StorageDirectoryClient(connection_string, container)
             azclient.upload_file(archive_path, archive_path_remote)
             self.log.info("[executor][finish][upload] upload complete: %s", archive_path_remote)
+            try:
+                archive_url = azclient.get_sas_url(archive_path_remote)
+                self.log.info("[executor][finish][upload] SAS URL generated runid=%s "
+                              "url_prefix=%s...", runid, archive_url[:80] if archive_url else "")
+            except Exception:
+                self.log.exception("[executor][finish][upload] FAILED to generate SAS URL "
+                                   "runid=%s remote=%s", runid, archive_path_remote)
         except Exception as exc:
+            # Not re-raised: the report below is uploaded on its own so the run
+            # still has something to show, and the failure is recorded as the
+            # run's outcome rather than as an unexplained empty blob_url.
             self.log.exception("[executor][finish][upload] FAILED to upload artifact "
                                "runid=%s archive=%s remote=%s container=%s",
                                runid, archive_path, archive_path_remote, container)
             self._record_failure(je.STAGE_FINISH, je.REASON_ARTIFACT_UPLOAD_FAILED, str(exc))
-            raise
 
-        # --- SAS URL ---
-        try:
-            blob_url = azclient.get_sas_url(archive_path_remote)
-            self.log.info("[executor][finish][upload] SAS URL generated runid=%s url_prefix=%s...",
-                          runid, blob_url[:80] if blob_url else "")
-        except Exception:
-            self.log.exception("[executor][finish][upload] FAILED to generate SAS URL "
-                               "runid=%s remote=%s", runid, archive_path_remote)
-            blob_url = ""
+        # The report goes up separately as well as inside the zip, so a failed
+        # run is readable without downloading and unpacking the artifacts.
+        report_url = run_report.upload_text(connection_string, container, report_remote, report)
+
+        # A run that reached the node always links to something: its artifacts
+        # when they were uploaded, otherwise its report.
+        blob_url = archive_url or report_url
 
         # --- update run with blob URL and clearing status ---
         self.params["client"].update_run(
@@ -853,6 +967,45 @@ class LeotestExecutorDocker(LeotestExecutor):
                 exit_code, " (killed: out of memory)" if state.get("OOMKilled") else "")
         self._record_failure(je.STAGE_CONTAINER, reason, message, exit_code=exit_code)
 
+    def _report_meta(self):
+        image = ((self.params.get("experiment") or {}).get("docker") or {}).get("image")
+        meta = [("Docker image", image), ("Container", self.container_name)]
+        if self.container_start_error:
+            meta.append(("Container start error", self.container_start_error))
+        try:
+            state = self.docker_client.containers.get(self.container_name).attrs.get("State") or {}
+        except Exception:
+            meta.append(("Container state", "not available (the container is gone)"))
+            return meta
+        meta += [("Container exit code", state.get("ExitCode")),
+                 ("Container started at", state.get("StartedAt")),
+                 ("Container finished at", state.get("FinishedAt")),
+                 ("Container OOM killed", state.get("OOMKilled")),
+                 ("Stopped by its TTL", self.container_ttl_stopped)]
+        if (state.get("Error") or "").strip():
+            meta.append(("Container error", state["Error"]))
+        return meta
+
+    def _report_sections(self):
+        """The experiment container's own output, read back from Docker.
+
+        The streamed copy in the executor log is interleaved with the executor's
+        own lines; this is the experiment's stdout and stderr on their own, which
+        is what someone debugging their image wants to read first. Read before
+        ``_finish_job`` removes the container.
+        """
+        try:
+            container = self.docker_client.containers.get(self.container_name)
+            logs = container.logs(stdout=True, stderr=True, tail=2000)
+        except docker.errors.NotFound:
+            return [("Container output",
+                     "(the container %s does not exist, so it produced no output)"
+                     % self.container_name)]
+        except Exception as exc:
+            return [("Container output", "(could not be read from Docker: %s)" % exc)]
+        return [("Container output (last 2000 lines)",
+                 logs.decode("utf-8", errors="replace") if logs else "(empty)")]
+
     def _finish_job(self):
         """Stop and remove the experiment container."""
         try:
@@ -875,18 +1028,26 @@ class LeotestExecutorDocker(LeotestExecutor):
 # Entry point
 # ---------------------------------------------------------------------------
 def report_pre_run_failure(client, runid, jobid, nodeid, userid, start_time,
-                           stage, reason_code, message):
+                           stage, reason_code, message, report=None):
     """Record a failure that happened before the executor could start its run.
 
     Writes a FAILED run row (so it appears in the runs tab) and a job event.
     Both writes are best effort: the process is about to exit with the original error.
+
+    :param report: ``(connection_string, container, blob_path, text)`` for a run
+        report to upload and link from the run row. Optional: at the earliest
+        failures there is no Azure configuration to upload it with.
     """
     message = je.truncate(message)
+    blob_url = ""
+    if report:
+        blob_url = run_report.upload_text(*report)
     try:
         client.update_run(
             runid=runid, jobid=jobid, nodeid=nodeid, userid=userid, start_time=start_time,
             status=je.STATUS_FAILED,
             status_message=je.truncate("%s failed (%s): %s" % (stage, reason_code, message)),
+            blob_url=blob_url,
             stage=stage, reason_code=reason_code)
     except Exception:
         log.exception("[executor] could not write FAILED run row runid=%s", runid)
@@ -899,17 +1060,13 @@ def report_pre_run_failure(client, runid, jobid, nodeid, userid, start_time,
         log.exception("[executor] could not report job event runid=%s", runid)
 
 
-def main():
-    # Minimal bootstrap logging until we open the per-run log file
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s",
-        stream=sys.stdout)
+def build_arg_parser():
+    """The executor's command line.
 
-    log_bootstrap = logging.getLogger(__name__)
-    log_bootstrap.info("[executor] ===== LEOScope Executor Starting =====")
-    cfg.log_config_summary()
-
+    Lifted out of main() so the node's schedulers can be checked against it:
+    passing a flag that is not declared here is what silently killed every
+    scheduled run before 2026-10-27.
+    """
     parser = argparse.ArgumentParser(description="LEOScope experiment executor.")
 
     # server-mode args
@@ -946,8 +1103,31 @@ def main():
     parser.set_defaults(overhead=True)
     parser.add_argument("--workdir",         type=str, default=cfg.ARTIFACTDIR)
     parser.add_argument("--executor-config", type=str, default=cfg.EXECUTOR_CONFIG)
+    return parser
 
-    args = parser.parse_args()
+
+def main():
+    # Minimal bootstrap logging until we open the per-run log file
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(filename)s:%(lineno)s %(thread)d %(levelname)s %(message)s",
+        stream=sys.stdout)
+
+    log_bootstrap = logging.getLogger(__name__)
+    log_bootstrap.info("[executor] ===== LEOScope Executor Starting =====")
+    cfg.log_config_summary()
+
+    parser = build_arg_parser()
+
+    # parse_known_args, not parse_args: an unrecognised flag used to make
+    # argparse exit 2 before the run began, and atd mailed that message into a
+    # container with no MTA, so the run vanished without a trace. An unexpected
+    # flag is now a logged warning -- the run still happens, and if it really
+    # cannot, it fails somewhere that reports.
+    args, unknown_args = parser.parse_known_args()
+    if unknown_args:
+        log_bootstrap.warning("[executor] ignoring arguments this executor does not "
+                              "declare: %s", " ".join(unknown_args))
 
     taskid       = None
     runid        = None
@@ -1173,6 +1353,45 @@ def main():
                  workdir, log_stdout_path, log_stderr_path)
     log_run.info("[executor] remote_path=%s", remote_path)
 
+    run_report_runid = runid_server if args.server else runid
+
+    def pre_run_report(stage, reason_code, message):
+        """A report for a failure that happens before the lifecycle starts.
+
+        Returned in the shape report_pre_run_failure() wants, so even the
+        earliest failures leave a readable file next to where this run's
+        artifacts would have gone. The Azure settings are the global ones: a
+        failure here may well be the experiment config itself not loading, so
+        its own cloud_config cannot be relied on.
+        """
+        for stream in (executor_log_stdout, executor_log_stderr):
+            try:
+                stream.flush()
+            except Exception:
+                pass
+        text = run_report.build_report(
+            "LEOScope run report: %s / %s" % (jobid, run_report_runid),
+            [("Run", run_report_runid),
+             ("Job", jobid),
+             ("Node", nodeid),
+             ("User", userid),
+             ("Status", je.STATUS_FAILED),
+             ("Failed at stage", stage),
+             ("Reason code", reason_code),
+             ("Job type", job_type),
+             ("Scheduled start (UTC)", start_date),
+             ("Scheduled end (UTC)", end_date),
+             ("Run started (UTC)", str(timenow)),
+             ("Report written (UTC)", str(time_now())),
+             ("Workdir", workdir)],
+            [("What happened",
+              "The run failed at the %s stage, before the experiment could be deployed.\n%s"
+              % (stage, message)),
+             ("Executor stdout", run_report.tail(log_stdout_path)),
+             ("Executor stderr", run_report.tail(log_stderr_path))])
+        return (connection_string_global, container_global,
+                run_report.report_blob_path(remote_path, run_report_runid), text)
+
     # ------------------------------------------------------------------
     # Experiment and executor config
     # ------------------------------------------------------------------
@@ -1269,13 +1488,13 @@ def main():
 
     except Exception as exc:
         log_run.exception("[executor][config] FAILED before run start runid=%s jobid=%s", runid, jobid)
+        reason_code = (je.REASON_CONFIG_INVALID if isinstance(exc, yaml.YAMLError)
+                       else je.REASON_CONFIG_FETCH_FAILED)
         report_pre_run_failure(
-            client, runid=runid_server if args.server else runid, jobid=jobid, nodeid=nodeid,
+            client, runid=run_report_runid, jobid=jobid, nodeid=nodeid,
             userid=userid, start_time=str(timenow),
-            stage=je.STAGE_CONFIG,
-            reason_code=(je.REASON_CONFIG_INVALID if isinstance(exc, yaml.YAMLError)
-                         else je.REASON_CONFIG_FETCH_FAILED),
-            message=str(exc))
+            stage=je.STAGE_CONFIG, reason_code=reason_code, message=str(exc),
+            report=pre_run_report(je.STAGE_CONFIG, reason_code, str(exc)))
         raise
 
     # ------------------------------------------------------------------
@@ -1308,6 +1527,8 @@ def main():
         "log":          log_run,
         "executor_log_stdout": executor_log_stdout,
         "executor_log_stderr": executor_log_stderr,
+        "log_stdout_path": log_stdout_path,
+        "log_stderr_path": log_stderr_path,
         "terminate":    terminate,
         "overhead":     overhead,
         "job_type":     job_type,
@@ -1320,11 +1541,13 @@ def main():
             executor = LeotestExecutorDocker(params=params)
         except Exception as exc:
             log_run.exception("[executor] could not initialise docker executor runid=%s", runid)
+            message = "could not initialise docker executor: %s" % exc
             report_pre_run_failure(
-                client, runid=runid_server if args.server else runid, jobid=jobid, nodeid=nodeid,
+                client, runid=run_report_runid, jobid=jobid, nodeid=nodeid,
                 userid=userid, start_time=str(timenow),
                 stage=je.STAGE_DEPLOY, reason_code=je.REASON_DEPLOY_FAILED,
-                message="could not initialise docker executor: %s" % exc)
+                message=message,
+                report=pre_run_report(je.STAGE_DEPLOY, je.REASON_DEPLOY_FAILED, message))
             raise
     else:
         raise ValueError("Unsupported executor mode: %s" % args.mode)
@@ -1349,4 +1572,19 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except BaseException:
+        # main() redirects sys.stderr into the run's own log file inside the
+        # workdir, which is then deleted on cleanup. Write the traceback to the
+        # real stderr as well -- the file the node's dispatcher captured and
+        # reads back when a run never reported. Without this the node could see
+        # only that nothing happened.
+        try:
+            traceback.print_exc(file=sys.__stderr__)
+            sys.__stderr__.flush()
+        except Exception:
+            pass
+        raise

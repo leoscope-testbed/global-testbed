@@ -7,9 +7,8 @@ import docker
 import logging
 import threading
 from multiprocessing import Process
-from datetime import datetime, timedelta
-from atd import atd
-from subprocess import Popen, PIPE
+from datetime import timedelta
+from subprocess import Popen
 from crontab import CronTab
 from common.utils import time_now, get_public_ip, get_weather_mon_info
 from common.client import LeotestClient
@@ -22,6 +21,7 @@ from common import config as cfg
 import common.leotest_pb2_grpc as pb2_grpc
 import common.leotest_pb2 as pb2
 
+from node.dispatch import LeotestAtqDispatcher
 from node.trigger import LeotestTriggerMode, LeotestDockerNetworkMonitor, \
     LeotestGrpcMonitor, LeotestSatelliteMonitor, LeotestWeatherMonitor
 
@@ -252,168 +252,6 @@ class LeotestJobScheduler:
         return self._get_job_list()
 
 
-class LeotestJobSchedulerAtq(LeotestJobScheduler):
-    """Handle ATQ (one-shot) jobs from the orchestrator."""
-
-    def __init__(self, executor_path,
-                 nodeid,
-                 artifactdir="/artifacts/",
-                 grpc_hostname="localhost",
-                 grpc_port=50051,
-                 executor_config="/executor-config.yaml",
-                 access_token=""):
-        super().__init__(executor_path=executor_path)
-        self.artifactdir     = artifactdir
-        self.grpc_hostname   = grpc_hostname
-        self.grpc_port       = grpc_port
-        self.executor_config = executor_config
-        self.nodeid          = nodeid
-        self.access_token    = access_token
-
-    def get_jobid_from_command(self, cmd):
-        """jobid of a queued entry, taken from the trailing ``# <jobid>`` marker.
-
-        Returns ``None`` for an entry without the marker (anything not queued by
-        us), so a foreign at entry cannot break the sync.
-        """
-        if isinstance(cmd, bytes):
-            cmd = cmd.decode("utf-8", errors="replace")
-        parts = cmd.split("#")
-        if len(parts) < 2:
-            return None
-        return parts[1].strip()
-
-    def get_job_with_id(self, jobid):
-        job = None
-        job_found = False
-        atq = atd.AtQueue()
-        for _job in atq.jobs:
-            if jobid == self.get_jobid_from_command(_job.command):
-                log.info("[scheduler][atq] found atq entry for jobid=%s", jobid)
-                job_found = True
-                job = _job
-                break
-        return job_found, job
-
-    def list_all_jobs(self):
-        jobs = []
-        atq = atd.AtQueue()
-        for _job in atq.jobs:
-            jobid = self.get_jobid_from_command(_job.command)
-            if jobid is not None:
-                jobs.append(jobid)
-        return jobs
-
-    def jobid_in_remote_list(self, jobid, remote_job_list):
-        # remote_job_list holds LeotestJobAtq objects, not dicts.
-        return any(jobid == job.get_jobid() for job in remote_job_list)
-
-    def _build_cmd(self, leotest_job):
-        cmd = self.executor_path
-        for key, value in leotest_job.get_job_params().items():
-            cmd += " --%s='%s'" % (key, value)
-        cmd += " --jobid=%s"        % leotest_job.get_jobid()
-        cmd += " --start-date=%s"   % leotest_job.start_date
-        cmd += " --end-date=%s"     % leotest_job.end_date
-        cmd += " --resched-buffer=%d" % cfg.SCHEDULER_RESCHED_BUFFER_SECS
-        cmd += " --length-secs=%s"  % leotest_job.get_length_secs()
-        cmd += " --nodeid=%s"       % self.nodeid
-        cmd += " --userid=%s"       % leotest_job.userid
-        cmd += " --access-token=%s" % self.access_token
-        cmd += ' --workdir="%s"'    % self.artifactdir
-        cmd += " --grpc-hostname=%s" % self.grpc_hostname
-        cmd += " --grpc-port=%s"    % self.grpc_port
-        cmd += " --executor-config=%s" % self.executor_config
-        cmd += " --mode=docker"
-        cmd += " --type=%s"         % leotest_job.type
-        if leotest_job.overhead:
-            cmd += " --overhead"
-        else:
-            cmd += " --no-overhead"
-        if leotest_job.server:
-            cmd += " --setup-server"
-            cmd += " --server-node=%s" % leotest_job.server
-        logfile = os.path.join(self.artifactdir, "executor_stdout.log")
-        cmd += " >> %s" % logfile
-        return cmd
-
-    def _add_job(self, leotest_job):
-        cmd = self._build_cmd(leotest_job)
-        start_obj = leotest_job.get_start_time_obj()
-
-        if time_now() >= start_obj:
-            log.warning("[scheduler][atq][add_job] skipping ATQ job — start time already passed: "
-                        "jobid=%s start_date=%s", leotest_job.get_jobid(), leotest_job.start_date)
-        else:
-            log.info("[scheduler][atq][add_job] scheduling ATQ job: "
-                     "jobid=%s start_date=%s cmd_prefix=%s...",
-                     leotest_job.get_jobid(), leotest_job.start_date, cmd[:120])
-            atd.at("%s # %s" % (cmd, leotest_job.get_jobid()), start_obj)
-            log.info("[scheduler][atq][add_job] ATQ entry created jobid=%s", leotest_job.get_jobid())
-
-    @staticmethod
-    def _entry_matches(at_job, leotest_job):
-        """True when a queued entry already fires at the job's start time.
-
-        ``at`` stores minute resolution, so both sides are compared truncated to
-        the minute; otherwise a start time with seconds would never match and the
-        entry would be requeued on every tick.
-        """
-        try:
-            queued_when = at_job.when
-        except Exception:
-            return False
-        if not isinstance(queued_when, datetime):
-            return False
-        wanted = leotest_job.get_start_time_obj()
-        return (queued_when.replace(second=0, microsecond=0)
-                == wanted.replace(second=0, microsecond=0))
-
-    def _sync_jobs(self, remote_job_list):
-        """Reconcile the at queue with the orchestrator's job list.
-
-        Entries that already match are left alone. The at queue is the only record
-        that a one-shot job is pending, and ``_add_job`` cannot re-add a job whose
-        start time has passed (``atd.at`` rejects past times), so clearing and
-        re-adding every tick would destroy an entry in the seconds between its
-        start time and atd executing it — the job would then never run at all.
-        """
-        remote_by_jobid = {job.get_jobid(): job for job in remote_job_list}
-
-        local_jobs = {}
-        for job in atd.AtQueue().jobs:
-            try:
-                jobid = self.get_jobid_from_command(job.command)
-                if jobid is None:
-                    log.debug("[scheduler][atq][sync] leaving unrecognised at entry id=%s",
-                              job.id)
-                    continue
-                if jobid not in remote_by_jobid:
-                    log.info("[scheduler][atq][sync] removing entry for a job no longer "
-                             "scheduled here: jobid=%s", jobid)
-                    atd.atrm(job)
-                elif not self._entry_matches(job, remote_by_jobid[jobid]):
-                    log.info("[scheduler][atq][sync] start time changed, requeueing jobid=%s",
-                             jobid)
-                    atd.atrm(job)
-                else:
-                    local_jobs[jobid] = job
-            except Exception:
-                log.exception("[scheduler][atq][sync] error reconciling at entry id=%s",
-                              getattr(job, "id", "unknown"))
-
-        log.info("[scheduler][atq][sync] syncing %d remote ATQ jobs (%d already queued)",
-                 len(remote_job_list), len(local_jobs))
-        for job in remote_job_list:
-            jobid = job.get_jobid()
-            if jobid not in local_jobs:
-                log.info("[scheduler][atq][sync] adding ATQ job jobid=%s", jobid)
-                self.add_job(job)
-            else:
-                log.debug("[scheduler][atq][sync] ATQ job already queued jobid=%s", jobid)
-        log.info("[scheduler][atq][sync] done")
-
-
 class LeotestJobSchedulerCron(LeotestJobScheduler):
     """Handle cron (recurring) jobs from the orchestrator."""
 
@@ -434,9 +272,21 @@ class LeotestJobSchedulerCron(LeotestJobScheduler):
         self.access_token    = access_token
 
     def _build_cmd(self, leotest_job):
+        """The crontab command for a recurring job.
+
+        The job's ``params`` (``mode``/``deploy``/``execute``/``finish``) are
+        deliberately not turned into flags. They are schedule-time metadata, not
+        executor options -- the website sends ``deploy``/``execute``/``finish``
+        as ``"-"`` -- so emitting them produced ``--deploy='-'`` and argparse
+        exited 2 before the run started, with the error mailed into a container
+        that has no MTA. ``--mode`` is the only one the executor declares, and it
+        is set explicitly below.
+        """
+        params = leotest_job.get_job_params() or {}
+        if params:
+            log.debug("[scheduler][cron] jobid=%s params=%s are not executor flags; not passed",
+                      leotest_job.get_jobid(), params)
         cmd = self.executor_path
-        for key, value in leotest_job.get_job_params().items():
-            cmd += " --%s='%s'" % (key, value)
         cmd += " --jobid=%s"         % leotest_job.get_jobid()
         cmd += " --start-date=%s"    % leotest_job.start_date
         cmd += " --end-date=%s"      % leotest_job.end_date
@@ -459,7 +309,9 @@ class LeotestJobSchedulerCron(LeotestJobScheduler):
             cmd += " --setup-server"
             cmd += " --server-node=%s" % leotest_job.server
         logfile = os.path.join(self.artifactdir, "executor_stdout.log")
-        cmd += " >> %s" % logfile
+        # stderr is redirected too: cron mails a job's stderr, and the node
+        # container has no MTA, so without this every traceback was discarded.
+        cmd += " >> %s 2>&1" % logfile
         return cmd
 
     def _add_job(self, leotest_job):
@@ -488,14 +340,18 @@ class LeotestJobSchedulerCron(LeotestJobScheduler):
         log.info("[scheduler][cron][sync] crontab written")
 
     def get_params_from_cmd(self, cmd):
+        """Flags parsed back out of a crontab command.
+
+        Tokens that are not ``--key=value`` -- the interpreter path, the module
+        name, bare switches like ``--no-overhead`` and the trailing
+        ``>> log 2>&1`` -- are skipped rather than raising.
+        """
         params = {}
-        tokens = cmd.split(" ")
-        for i in range(1, len(tokens)):
-            arg = tokens[i]
-            arg_split = arg.split("=")
-            key = arg_split[0][2:]
-            val = arg_split[1]
-            params[key] = val
+        for token in cmd.split(" ")[1:]:
+            if not token.startswith("--") or "=" not in token:
+                continue
+            key, _, value = token[2:].partition("=")
+            params[key] = value
         return params
 
     def _get_job_list(self):
@@ -515,7 +371,29 @@ class LeotestJobSchedulerCron(LeotestJobScheduler):
         return leotest_job_list
 
 
-def _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_scheduler,
+def _reap_orphans():
+    """Collect executors that outlived the tick that started them.
+
+    A dispatched executor runs in its own session, so when its tick process
+    ends the kernel reparents it to this process -- PID 1 in the node container.
+    Nothing would otherwise wait on it, and the zombies would accumulate for as
+    long as the node runs. Called only after ``Process.join``, so this never
+    steals a tick's own exit status.
+    """
+    while True:
+        try:
+            pid, status = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return
+        except OSError:
+            log.exception("[scheduler] error while reaping finished child processes")
+            return
+        if pid == 0:
+            return
+        log.info("[scheduler] reaped finished child pid=%d status=%d", pid, status)
+
+
+def _scheduler_execute(nodeid, client, cron_scheduler, atq_dispatcher, task_scheduler,
                        sessionstore, trigger_module, log):
     client.init_grpc_client()  # reset gRPC socket after fork()
 
@@ -628,8 +506,10 @@ def _scheduler_execute(nodeid, client, cron_scheduler, atq_scheduler, task_sched
 
     log.info("[scheduler][tick] syncing cron scheduler: %d jobs", len(remote_job_list["cron"]))
     cron_scheduler.sync_jobs(remote_job_list["cron"])
-    log.info("[scheduler][tick] syncing atq scheduler: %d jobs", len(remote_job_list["atq"]))
-    atq_scheduler.sync_jobs(remote_job_list["atq"])
+    log.info("[scheduler][tick] dispatching due atq jobs: %d queued", len(remote_job_list["atq"]))
+    atq_dispatcher.dispatch_due(remote_job_list["atq"])
+    # Every occurrence gets a verdict, including the ones no executor reported on.
+    atq_dispatcher.verify(client)
     for key in remote_job_list:
         trigger_module.sync_triggers(remote_job_list[key])
     log.info("[scheduler][tick] job sync complete nodeid=%s", nodeid)
@@ -751,8 +631,12 @@ def scheduler_loop(nodeid,
         executor_config=executor_config,
         access_token=access_token)
 
-    atq_scheduler = LeotestJobSchedulerAtq(
-        executor_path=exec_hook,
+    # One-shot jobs are fired from here rather than through the at queue; see
+    # node/dispatch.py for the failure modes that cost.
+    atq_dispatcher = LeotestAtqDispatcher(
+        python_bin=cfg.PYTHON_BIN,
+        module_name="node.executor",
+        workdir=workdir,
         nodeid=nodeid,
         artifactdir=artifactdir,
         grpc_hostname=grpc_hostname,
@@ -872,7 +756,7 @@ def scheduler_loop(nodeid,
     while True:
         tick += 1
         log.info("[scheduler] ===== TICK #%d nodeid=%s =====", tick, nodeid)
-        args = (nodeid, client, cron_scheduler, atq_scheduler, task_scheduler,
+        args = (nodeid, client, cron_scheduler, atq_dispatcher, task_scheduler,
                 sessionstore, trigger_module, log)
         p = Process(target=_scheduler_execute, args=args)
         p.start()
@@ -882,4 +766,5 @@ def scheduler_loop(nodeid,
             p.terminate()
         else:
             log.info("[scheduler] tick #%d completed exitcode=%s", tick, p.exitcode)
+        _reap_orphans()
         time.sleep(interval)

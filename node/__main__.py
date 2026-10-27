@@ -54,8 +54,8 @@ def main():
     # cron service doesn't start automatically on docker containers
     log.info('restarting cron service')
     call(['service', 'cron', 'restart'])
-    log.info('restarting atd service')
-    call(['service', 'atd', 'restart'])
+    # atd is deliberately not started: one-shot (ATQ) jobs are dispatched by the
+    # scheduler itself now. See node/dispatch.py for why the at queue lost runs.
     try:
         log.info('starting scheduler loop')
         scheduler_loop(nodeid, 

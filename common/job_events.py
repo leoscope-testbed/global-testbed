@@ -18,6 +18,10 @@ from croniter import croniter
 # Stages: the step of the lifecycle a record is about
 # ---------------------------------------------------------------------------
 STAGE_SCHEDULE = "SCHEDULE"
+# The node's own attempt to start an executor process for a scheduled occurrence.
+# Everything before STAGE_CONFIG, which is the first stage the executor itself
+# can report on.
+STAGE_DISPATCH = "DISPATCH"
 STAGE_CONFIG = "CONFIG"
 STAGE_TRIGGER = "TRIGGER"
 STAGE_DEPLOY = "DEPLOY"
@@ -59,6 +63,12 @@ REASON_NODE_OFFLINE = "NODE_OFFLINE"
 REASON_NODE_OFFLINE_AT_SCHEDULE = "NODE_OFFLINE_AT_SCHEDULE"
 REASON_NODE_TIMEZONE_UNKNOWN = "NODE_TIMEZONE_UNKNOWN"
 REASON_NO_EXECUTOR_REPORT = "NO_EXECUTOR_REPORT"
+# Dispatch failures, reported by the node rather than the reconciler. The node
+# knows why a run never happened; the reconciler can only see that it did not.
+REASON_DISPATCH_FAILED = "DISPATCH_FAILED"
+REASON_DISPATCH_TOO_LATE = "DISPATCH_TOO_LATE"
+REASON_EXECUTOR_NO_REPORT = "EXECUTOR_NO_REPORT"
+REASON_EXECUTOR_CRASHED = "EXECUTOR_CRASHED"
 
 # ---------------------------------------------------------------------------
 # Trigger verdicts recorded by the node and reported in the run
@@ -248,7 +258,14 @@ def atq_occurrences(start, lower_excl, upper_incl):
 
 
 def occurrence_runid(jobid, occurrence):
-    """Deterministic run id for a reconciler-written row, so reruns upsert."""
+    """Deterministic run id for a scheduled occurrence that no executor claimed.
+
+    Derived from the occurrence alone so that the two components that can write
+    such a row -- the node, which knows why nothing ran, and the reconciler,
+    which only knows that nothing did -- address the same row. Repeated passes
+    therefore upsert instead of accumulating, and the node's explained failure
+    stands in for the reconciler's bare MISSED rather than appearing beside it.
+    """
     digest = hashlib.sha256(("%s|%s" % (jobid, parse_utc(occurrence).isoformat())).encode()).hexdigest()
     return "missed-%s" % digest[:24]
 
